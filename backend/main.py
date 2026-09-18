@@ -145,10 +145,16 @@ def init_db():
 # Executa criação de tabelas e seeds
 init_db()
 
+# Desabilita a interface Swagger (/docs) e ReDoc (/redoc) em produção
+# para não expor a estrutura completa da API publicamente.
+_is_production = settings.ENVIRONMENT != "development"
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="API RESTful oficial da Distribuidora Irmãos Barreiro com criptografia de dados sensíveis e conectada ao PostgreSQL (Barreiro).",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
 )
 
 # Configuração flexível e segura de CORS para comunicação com o Frontend
@@ -177,20 +183,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security headers HTTP para hardening da API
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: StarletteResponse = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        if _is_production:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Inclui os roteadores da API v1
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
-    return {
-        "empresa": "Distribuidora Irmãos Barreiro",
-        "status": "online",
-        "banco_de_dados": "PostgreSQL (Barreiro)",
-        "criptografia": "BCrypt (senhas) & AES-128/Fernet (dados sensíveis)",
-        "docs": "/docs",
-        "api_v1": settings.API_V1_STR
-    }
+    return {"status": "online"}
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "database": "connected", "encryption": "active"}
+    return {"status": "ok"}

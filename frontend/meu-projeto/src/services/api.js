@@ -24,43 +24,70 @@ function getApiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
-// A sessão é mantida em cookie HttpOnly; nenhum JWT fica acessível ao JavaScript.
+// A sessão é mantida em cookie HttpOnly e/ou token volátil em memória RAM.
+// Nenhum token JWT é armazenado em sessionStorage ou localStorage (DEV-03).
+let _inMemoryAuthToken = '';
+
 async function fetch(url, options = {}) {
-  return window.fetch(url, { ...options, credentials: 'include' });
+  const headers = {
+    'X-Requested-With': 'XMLHttpRequest',
+    ...(options.headers || {}),
+  };
+  return window.fetch(url, { ...options, headers, credentials: 'include' });
 }
 
-// Gerenciamento seguro do Token JWT
+// Retorna o token volátil mantido somente na memória da aba ativa
 export function getAuthToken() {
-  try {
-    return '';
-  } catch {
-    return '';
-  }
+  return _inMemoryAuthToken;
 }
 
 export function setAuthToken(token) {
+  _inMemoryAuthToken = token || '';
   try {
-    if (token) {
-      return;
-    } else {
-      return;
-    }
-  } catch (err) {
-    console.warn('Falha ao salvar token na sessão:', err);
-  }
+    // Purga imediata de qualquer resíduo histórico nos storages do navegador
+    sessionStorage.removeItem('barreiro_token');
+    localStorage.removeItem('barreiro_token');
+  } catch {}
 }
 
 export function removeAuthToken() {
+  _inMemoryAuthToken = '';
   try {
-    return;
-  } catch (err) {
-    console.warn('Falha ao remover token da sessão:', err);
+    sessionStorage.removeItem('barreiro_token');
+    localStorage.removeItem('barreiro_token');
+  } catch {}
+}
+
+export function clearAllAppStorage() {
+  removeAuthToken();
+  const keys = [
+    'barreiro_token',
+    'user_barreiro',
+    'portal_active_module',
+    'data_selecionada_diaristas',
+    'diaristas_cache',
+    'epis_estoque_cache',
+    'epis_funcionarios_cache',
+    'registros_funcionarios_cache',
+    'lista_pts_cache',
+  ];
+  try {
+    keys.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+    sessionStorage.clear();
+  } catch (e) {
+    console.warn('Erro ao limpar storage:', e);
   }
 }
 
 function getAuthHeaders(customHeaders = {}) {
   const token = getAuthToken();
-  const headers = { ...customHeaders };
+  const headers = {
+    'X-Requested-With': 'XMLHttpRequest',
+    ...customHeaders,
+  };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -77,25 +104,38 @@ export async function loginApi(email, senha) {
     });
   } catch (err) {
     if (err?.message?.startsWith('API não configurada')) throw err;
-    throw new Error('Não foi possível conectar à API. Verifique se o serviço do backend está ativo no Railway.');
+    throw new Error('Não foi possível conectar à API. Verifique se o serviço do backend está ativo.');
   }
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Erro ao realizar login');
   }
   const data = await res.json();
-  // Remove qualquer token legado do sessionStorage; a sessão atual está no cookie HttpOnly.
-  setAuthToken('');
+  if (data.access_token) {
+    setAuthToken(data.access_token);
+  }
   return data;
 }
 
-// A browser token is only valid after the configured backend confirms it.
+export async function logoutApi() {
+  try {
+    await fetch(getApiUrl('/auth/logout'), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  } catch (e) {
+    console.warn('Erro ao chamar logout na API:', e);
+  } finally {
+    clearAllAppStorage();
+  }
+}
+
+// Restaura a sessão do usuário conectado
 export async function getCurrentUserApi() {
-  const token = getAuthToken();
-  if (!token) throw new Error('Sessao inexistente');
+  const headers = getAuthHeaders();
 
   const res = await fetch(getApiUrl('/auth/me'), {
-    headers: getAuthHeaders(),
+    headers,
   });
   if (!res.ok) throw new Error('Sessao invalida ou API indisponivel');
   return await res.json();
@@ -176,7 +216,7 @@ export async function getFuncionariosBaseApi(query = '') {
 export async function createColaboradorApi(formData) {
   const res = await fetch(`${API_BASE_URL}/colaboradores`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(formData),
   });
   if (!res.ok) throw new Error('Erro ao cadastrar ficha de colaborador');
@@ -186,7 +226,7 @@ export async function createColaboradorApi(formData) {
 export async function createPessoaJuridicaApi(formData) {
   const res = await fetch(`${API_BASE_URL}/pessoas-juridicas`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(formData),
   });
   if (!res.ok) throw new Error('Erro ao cadastrar pessoa jurídica');
@@ -525,6 +565,26 @@ export function getEpiEntregaPdfUrl(id) {
 
 export function getColaboradorFichaPdfUrl(colaboradorNome) {
   return `${API_BASE_URL}/epis/ficha-colaborador-pdf?colaborador_nome=${encodeURIComponent(colaboradorNome)}`;
+}
+
+export async function baixarColaboradorFichaPdfApi(colaboradorNome) {
+  const url = `${API_BASE_URL}/epis/ficha-colaborador-pdf?colaborador_nome=${encodeURIComponent(colaboradorNome)}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Não foi possível gerar a ficha de EPI em PDF.');
+  }
+  return await res.blob();
+}
+
+export async function baixarEpiEntregaPdfApi(id) {
+  const url = `${API_BASE_URL}/epis/entregas/${id}/pdf`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Não foi possível gerar o PDF da entrega de EPI.');
+  }
+  return await res.blob();
 }
 
 export async function carregarPadraoImagem1Api() {

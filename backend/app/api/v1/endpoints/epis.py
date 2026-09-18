@@ -41,7 +41,7 @@ def listar_epis(
     busca: Optional[str] = Query(None, description="Busca por descrição, CA ou fabricante"),
     situacao: Optional[str] = Query(None, description="Filtrar por 'COMPRAR' ou 'OK'"),
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Lista todos os EPIs cadastrados com cálculo automático da situação
@@ -73,7 +73,7 @@ def listar_epis(
 def criar_epi(
     epi_in: EPICreate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Cadastra manualmente um novo EPI."""
     novo_epi = EPI(**epi_in.dict())
@@ -88,7 +88,7 @@ def atualizar_epi(
     epi_id: int,
     epi_in: EPIUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Atualiza dados cadastrais ou estoques de um EPI existente."""
     epi = db.query(EPI).filter(EPI.id == epi_id).first()
@@ -107,7 +107,7 @@ def atualizar_epi(
 def deletar_epi(
     epi_id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Exclui um EPI e o histórico atrelado a ele."""
     epi = db.query(EPI).filter(EPI.id == epi_id).first()
@@ -123,10 +123,13 @@ def deletar_epi(
 # 2. CARGA E MIGRAÇÃO DE PLANILHAS (EXCEL .xlsx / .xls OU .csv)
 # ============================================================================
 
+_TAMANHO_MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB
+
+
 @router.post("/preview-planilha", response_model=PreviewPlanilhaOut)
 async def endpoint_preview_planilha(
     file: UploadFile = File(...),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Lê as primeiras linhas da planilha enviada para pré-visualização no frontend
@@ -136,18 +139,22 @@ async def endpoint_preview_planilha(
         raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos .xlsx, .xls ou .csv.")
 
     file_bytes = await file.read()
+    if len(file_bytes) > _TAMANHO_MAX_UPLOAD:
+        raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
     try:
         dados = preview_planilha(file_bytes, file.filename)
         return dados
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao processar prévia da planilha: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível processar a planilha. Verifique o formato do arquivo.")
 
 
 @router.post("/importar-planilha", response_model=ImportacaoResultadoOut)
 async def endpoint_importar_planilha(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Processa a planilha do Excel ou CSV e migra os dados diretamente para o banco
@@ -157,8 +164,15 @@ async def endpoint_importar_planilha(
         raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos .xlsx, .xls ou .csv.")
 
     file_bytes = await file.read()
-    resultado = importar_planilha_para_banco(file_bytes, file.filename, db)
-    return resultado
+    if len(file_bytes) > _TAMANHO_MAX_UPLOAD:
+        raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
+    try:
+        resultado = importar_planilha_para_banco(file_bytes, file.filename, db)
+        return resultado
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível importar a planilha. Verifique o formato do arquivo.")
 
 
 # ============================================================================
@@ -169,7 +183,7 @@ async def endpoint_importar_planilha(
 async def endpoint_importar_xml(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Lê o arquivo XML da NF-e (DANFE) e incrementa automaticamente o saldo
@@ -179,11 +193,15 @@ async def endpoint_importar_xml(
         raise HTTPException(status_code=400, detail="Formato inválido. Por favor, envie um arquivo .xml de NF-e.")
 
     xml_bytes = await file.read()
+    if len(xml_bytes) > _TAMANHO_MAX_UPLOAD:
+        raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
     try:
         resultado = importar_nfe_para_banco(xml_bytes, db)
         return resultado
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao processar XML da NF-e: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível processar o XML da NF-e. Verifique se o arquivo é válido.")
 
 
 # ============================================================================
@@ -223,7 +241,7 @@ ITENS_PADRAO_IMAGEM1 = [
 @router.post("/carregar-padrao-imagem1")
 def carregar_padrao_imagem1(
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Popula ou atualiza no banco de dados exatamente os 26 itens constantes
@@ -274,7 +292,7 @@ def carregar_padrao_imagem1(
 def registrar_entrega(
     entrega_in: EntregaEPICreate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Registra a entrega de um EPI para um funcionário e realiza a baixa
@@ -300,7 +318,7 @@ def registrar_entrega(
 def deletar_entrega(
     entrega_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Exclui uma entrega e estorna a quantidade para o estoque do EPI."""
     entrega = db.query(EntregaEPI).filter(EntregaEPI.id == entrega_id).first()
@@ -320,7 +338,7 @@ def atualizar_entrega(
     entrega_id: str,
     dados: EntregaEPIUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Atualiza um lançamento de entrega de EPI de um funcionário.
@@ -367,7 +385,7 @@ def atualizar_entrega(
 @router.get("/funcionarios", response_model=List[FuncionarioEPIOut])
 def listar_funcionarios_epi(
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Retorna a lista de funcionários cadastrados EXCLUSIVAMENTE no módulo de EPIs
@@ -427,7 +445,7 @@ def listar_funcionarios_epi(
 def criar_funcionario_epi(
     dados: FuncionarioEPICreate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Cadastra ou atualiza um funcionário EXCLUSIVAMENTE na tabela do módulo de EPIs (funcionarios_epis).
@@ -500,7 +518,7 @@ def atualizar_funcionario_epi(
     funcionario_id: str,
     dados: FuncionarioEPIUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Atualiza os dados de um funcionário exclusivo do módulo de EPIs.
@@ -553,7 +571,7 @@ def atualizar_funcionario_epi(
 def deletar_funcionario_epi(
     funcionario_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Remove um funcionário da tabela exclusiva de EPIs.
@@ -574,7 +592,7 @@ def listar_entregas(
     colaborador: Optional[str] = Query(None, description="Filtrar por nome do colaborador"),
     epi_id: Optional[int] = Query(None, description="Filtrar por ID do EPI"),
     db: Session = Depends(get_db),
-    current_user: Optional[Usuario] = Depends(get_current_user)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Lista as entregas registradas com filtros opcionais."""
     query = db.query(EntregaEPI)
@@ -589,7 +607,8 @@ def listar_entregas(
 @router.get("/entregas/{entrega_id}/pdf")
 def gerar_pdf_entrega(
     entrega_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Gera e faz download da Ficha Individual de EPI em PDF com Termo de
@@ -634,7 +653,8 @@ def gerar_pdf_entrega(
 @router.get("/ficha-colaborador-pdf")
 def gerar_pdf_ficha_completa(
     colaborador_nome: str = Query(..., description="Nome do colaborador para gerar a ficha"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Gera a Ficha Oficial de EPI completa com todo o histórico de entregas

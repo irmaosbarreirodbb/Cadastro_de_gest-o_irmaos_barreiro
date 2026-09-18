@@ -51,8 +51,23 @@ const FUNCOES_REGISTRO = [
 ];
 
 export default function RegistroFuncionarios({ onBack }) {
-  const [funcionarios, setFuncionarios] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [funcionarios, setFuncionarios] = useState(() => {
+    try {
+      localStorage.removeItem('registros_funcionarios_cache'); // higienização de resíduo persistente antigo (DEV-04)
+      const salvo = sessionStorage.getItem('registros_funcionarios_cache');
+      return salvo ? JSON.parse(salvo) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const salvo = sessionStorage.getItem('registros_funcionarios_cache');
+      return !salvo;
+    } catch {
+      return true;
+    }
+  });
   const [busca, setBusca] = useState('');
   
   // Modal de cadastro / edição
@@ -111,9 +126,18 @@ export default function RegistroFuncionarios({ onBack }) {
     setLoading(true);
     try {
       const dados = await getRegistrosFuncionariosApi();
-      setFuncionarios(dados || []);
+      if (dados && Array.isArray(dados)) {
+        setFuncionarios(dados);
+        sessionStorage.setItem('registros_funcionarios_cache', JSON.stringify(dados));
+      }
     } catch (err) {
       console.error('Erro ao carregar funcionários:', err);
+      const salvo = sessionStorage.getItem('registros_funcionarios_cache');
+      if (salvo) {
+        try {
+          setFuncionarios(JSON.parse(salvo));
+        } catch (e) {}
+      }
     } finally {
       setLoading(false);
     }

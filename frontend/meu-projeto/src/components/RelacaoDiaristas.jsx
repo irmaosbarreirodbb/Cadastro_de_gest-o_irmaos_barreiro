@@ -26,7 +26,9 @@ import {
   Table,
   ChevronDown,
   ChevronUp,
-  TrendingUp
+  TrendingUp,
+  SlidersHorizontal,
+  CalendarRange
 } from 'lucide-react';
 import RelatorioMensalModal from './RelatorioMensalModal';
 
@@ -96,7 +98,7 @@ function somarDias(dataStr, dias) {
 }
 
 function formatarMoeda(valor) {
-  return valor.toFixed(2).replace('.', ',');
+  return Number(valor || 0).toFixed(2).replace('.', ',');
 }
 
 export default function RelacaoDiaristas({ 
@@ -141,12 +143,8 @@ export default function RelacaoDiaristas({
   // Mês selecionado no painel de meses (0-11)
   const [mesExpandidoIndex, setMesExpandidoIndex] = useState(dataRefParsed.getMonth());
 
-  // Controles do mini-calendário original (mantido)
-  const [mesAtual, setMesAtual] = useState(new Date(dataRefParsed.getFullYear(), dataRefParsed.getMonth(), 1));
-  const [mostrarCalendario, setMostrarCalendario] = useState(false);
-
-  // Painel da sub-tabela anual/mensal expandida
-  const [mostrarSubTabelaMeses, setMostrarSubTabelaMeses] = useState(true);
+  // Painel anual/mensal começa RECOLHIDO por padrão para deixar a tela limpa e focada
+  const [mostrarSubTabelaMeses, setMostrarSubTabelaMeses] = useState(false);
 
   // Modal do Relatório Mensal Oficial
   const [relatorioAberto, setRelatorioAberto] = useState(false);
@@ -190,7 +188,6 @@ export default function RelacaoDiaristas({
       mapa[mesKey].valor += val;
       mapa[mesKey].totalRegistros += 1;
     });
-    // Converte Set para contagem
     const resultado = {};
     Object.keys(mapa).forEach(k => {
       resultado[k] = {
@@ -210,7 +207,7 @@ export default function RelacaoDiaristas({
     return Array.from(set).sort().reverse();
   }, [diaristas]);
 
-  // Anos disponíveis (com registros + ano vigente)
+  // Anos disponíveis
   const anosDisponiveis = useMemo(() => {
     const anos = new Set([hojeDate.getFullYear(), anoVigente]);
     diaristas.forEach(d => {
@@ -250,10 +247,13 @@ export default function RelacaoDiaristas({
   const listaFiltrada = useMemo(() => {
     return diaristasDoDia.filter((item) => {
       const termo = busca.toLowerCase().trim();
-      const matchBusca = !termo ||
-        item.nome.toLowerCase().includes(termo) ||
-        (item.pix && item.pix.toLowerCase().includes(termo));
-      return matchBusca;
+      if (!termo) return true;
+      return (
+        (item.nome && item.nome.toLowerCase().includes(termo)) ||
+        (item.motorista && item.motorista.toLowerCase().includes(termo)) ||
+        (item.profissao && item.profissao.toLowerCase().includes(termo)) ||
+        (item.pix && item.pix.toLowerCase().includes(termo))
+      );
     });
   }, [diaristasDoDia, busca]);
 
@@ -285,7 +285,6 @@ export default function RelacaoDiaristas({
     const novaData = somarDias(activeData, -1);
     setActiveData(novaData);
     const d = parseDataLocal(novaData);
-    setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
     setMesExpandidoIndex(d.getMonth());
     setAnoVigente(d.getFullYear());
   }
@@ -294,7 +293,6 @@ export default function RelacaoDiaristas({
     const novaData = somarDias(activeData, 1);
     setActiveData(novaData);
     const d = parseDataLocal(novaData);
-    setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
     setMesExpandidoIndex(d.getMonth());
     setAnoVigente(d.getFullYear());
   }
@@ -302,34 +300,24 @@ export default function RelacaoDiaristas({
   function irParaHoje() {
     setActiveData(hoje);
     const d = parseDataLocal(hoje);
-    setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
     setMesExpandidoIndex(d.getMonth());
     setAnoVigente(d.getFullYear());
-  }
-
-  function anteriorMes() {
-    setMesAtual(new Date(mesAtual.getFullYear(), mesAtual.getMonth() - 1, 1));
-  }
-
-  function proximoMes() {
-    setMesAtual(new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 1));
   }
 
   function handleSelecionarDiaDoMes(dataStr) {
     setActiveData(dataStr);
     const d = parseDataLocal(dataStr);
-    setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
+    setMesExpandidoIndex(d.getMonth());
+    setAnoVigente(d.getFullYear());
   }
 
   function handleSelecionarMes(mesIdx) {
     setMesExpandidoIndex(mesIdx);
     const d = parseDataLocal(activeData);
-    // Navega para o primeiro dia do mês se não há data ativa no mês
     const mesStr = String(mesIdx + 1).padStart(2, '0');
     const prefixo = `${anoVigente}-${mesStr}`;
     const diaAtual = d.getFullYear() === anoVigente && d.getMonth() === mesIdx ? activeData : `${prefixo}-01`;
     setActiveData(diaAtual);
-    setMesAtual(new Date(anoVigente, mesIdx, 1));
   }
 
   function handleAbrirRelatorio(mesIdx, autoDownload = false) {
@@ -340,32 +328,13 @@ export default function RelacaoDiaristas({
     setRelatorioAberto(true);
   }
 
-  // Grade de dias do mini-calendário
-  const anoAtual = mesAtual.getFullYear();
-  const mesAtualIndex = mesAtual.getMonth();
-  const primeiroDiaSemana = new Date(anoAtual, mesAtualIndex, 1).getDay();
-  const totalDiasMes = new Date(anoAtual, mesAtualIndex + 1, 0).getDate();
-
-  const diasArray = [];
-  for (let i = 0; i < primeiroDiaSemana; i++) diasArray.push(null);
-  for (let dia = 1; dia <= totalDiasMes; dia++) {
-    const mesFormatado = String(mesAtualIndex + 1).padStart(2, '0');
-    const diaFormatado = String(dia).padStart(2, '0');
-    const dataStr = `${anoAtual}-${mesFormatado}-${diaFormatado}`;
-    diasArray.push({
-      dia,
-      dataStr,
-      temDiaristas: !!contagemPorData[dataStr],
-      qtd: contagemPorData[dataStr] || 0,
-    });
-  }
-
   const isHoje = activeData === hoje;
+  const totalLancamentosAno = Object.values(metricasPorMes).reduce((acc, m) => acc + (m.totalRegistros || 0), 0);
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full animate-fadeIn">
 
-      {/* Modal do Relatório Mensal */}
+      {/* Modal do Relatório Mensal Oficial */}
       <RelatorioMensalModal
         isOpen={relatorioAberto}
         onClose={() => {
@@ -379,9 +348,9 @@ export default function RelacaoDiaristas({
       />
 
       {/* ================================================================= */}
-      {/* 1. CABEÇALHO PRINCIPAL                                             */}
+      {/* 1. CABEÇALHO PRINCIPAL UNIFICADO & ELEGANTE                       */}
       {/* ================================================================= */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 no-print">
+      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-5 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-5 no-print">
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
@@ -391,116 +360,249 @@ export default function RelacaoDiaristas({
             <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
           </button>
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-700 text-xs font-black uppercase tracking-wider mb-1.5 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-red-600 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-700 text-xs font-black uppercase tracking-wider mb-1.5 shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 text-red-600" />
               <span>Controle Diário de Pagamentos</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
               Relação de Diaristas
             </h1>
+            <p className="text-xs text-zinc-500 font-medium mt-0.5">
+              Gestão de diárias, fechamento de pagamentos e emissão de recibos oficiais.
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Botão Relatório Mensal — Modo Visualização */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          {/* Botão Relatório Mensal (PDF) */}
           <button
             id="btn-gerar-relatorio-mensal"
             onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-r from-zinc-800 to-zinc-900 hover:from-zinc-700 hover:to-zinc-800 text-white text-sm font-bold transition-all shadow-md cursor-pointer border border-zinc-700"
-            title={`Visualizar Relatório Mensal — ${MESES[mesExpandidoIndex]} ${anoVigente}`}
+            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border border-zinc-200 hover:border-zinc-300"
+            title={`Visualizar Relatório Mensal em PDF`}
           >
-            <BarChart2 className="w-4 h-4 text-emerald-400" />
-            <span>Relatório Mensal (PDF)</span>
+            <BarChart2 className="w-4 h-4 text-emerald-600" />
+            <span>Relatório Mensal</span>
           </button>
 
-          {/* Botão Imprimir Relação do Dia */}
+          {/* Botão Imprimir Dia */}
           <button
             onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-sm font-bold transition-all shadow-xs cursor-pointer border border-zinc-200"
+            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border border-zinc-200 hover:border-zinc-300"
+            title="Imprimir Relação do Dia Atual"
           >
-            <Printer className="w-4 h-4" />
-            <span>Imprimir Dia</span>
+            <Printer className="w-4 h-4 text-zinc-600" />
+            <span>Imprimir</span>
           </button>
 
           {/* Botão CADASTRAR DIARISTA */}
           <button
             id="btn-cadastrar-diarista"
             onClick={onNavigateCadastrar}
-            className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-sm font-black shadow-lg shadow-red-600/30 hover:shadow-red-600/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs sm:text-sm font-black shadow-lg shadow-red-600/30 hover:shadow-red-600/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer whitespace-nowrap"
           >
-            <UserPlus className="w-5 h-5" />
-            <span>CADASTRAR DIARISTA</span>
+            <UserPlus className="w-4 h-4" />
+            <span>Cadastrar Diarista</span>
           </button>
         </div>
       </div>
 
       {/* ================================================================= */}
-      {/* 2. PAINEL DO ANO VIGENTE + SUB-TABELA DE MESES                    */}
+      {/* 2. BARRA DE CONTROLE TEMPORAL (DATA, NAVEGAÇÃO & ATALHOS)        */}
       {/* ================================================================= */}
-      <div className="bg-gradient-to-br from-white via-zinc-50 to-zinc-100/50 rounded-3xl shadow-xl border border-zinc-200/80 overflow-hidden no-print">
+      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-5 sm:p-6 space-y-4 no-print">
         
-        {/* Barra superior: Controles de Ano + Botão para expandir/recolher */}
-        <div className="flex items-center justify-between px-5 sm:px-7 py-4 bg-gradient-to-r from-zinc-900 to-zinc-950 border-b border-zinc-800">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center shadow-sm">
-              <TrendingUp className="w-4 h-4 text-white" />
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          
+          {/* Lado Esquerdo: Controles Rápidos de Dia (<, Hoje, >) + Data Ativa */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-2xl border border-zinc-200/80 shadow-2xs">
+              <button
+                onClick={diaAnterior}
+                className="p-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition cursor-pointer shadow-2xs"
+                title="Dia Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={irParaHoje}
+                className={`px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                  isHoje
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-white hover:bg-zinc-200 text-zinc-700'
+                }`}
+                title="Ir para o dia de hoje"
+              >
+                Hoje
+              </button>
+
+              <button
+                onClick={diaSeguinte}
+                className="p-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition cursor-pointer shadow-2xs"
+                title="Próximo Dia"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block">
-                Visão Anual
-              </span>
-              <span className="text-base font-black text-white">
-                Painel do Ano Vigente
-              </span>
+
+            {/* Destaque Visual do Dia Selecionado */}
+            <div className="relative flex items-center gap-3 bg-zinc-50 border border-zinc-200 px-4 py-2.5 rounded-2xl shadow-2xs">
+              <div className="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <CalendarIcon className="w-4 h-4" />
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-zinc-900 tracking-tight">
+                    {formatarDataBR(activeData)}
+                  </span>
+                  {isHoje && (
+                    <span className="text-[10px] bg-red-100 text-red-700 font-black px-2 py-0.5 rounded-full uppercase">
+                      Hoje
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-zinc-500 font-semibold capitalize">
+                  {formatarDataExtenso(activeData).split(',')[0]}
+                </div>
+              </div>
+
+              {/* Input Nativo de Data Oculto sobre o botão */}
+              <label
+                className="ml-2 p-2 rounded-xl bg-white hover:bg-red-50 text-zinc-600 hover:text-red-600 border border-zinc-200 transition cursor-pointer relative shadow-2xs"
+                title="Escolher data específica no calendário"
+              >
+                <CalendarDays className="w-4 h-4" />
+                <input
+                  type="date"
+                  value={activeData}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setActiveData(e.target.value);
+                      const d = parseDataLocal(e.target.value);
+                      setMesExpandidoIndex(d.getMonth());
+                      setAnoVigente(d.getFullYear());
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+              </label>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Seletor de Ano */}
-            <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700">
-              <button
-                onClick={() => setAnoVigente(a => a - 1)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
-                title="Ano anterior"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <select
-                value={anoVigente}
-                onChange={(e) => setAnoVigente(parseInt(e.target.value, 10))}
-                className="bg-transparent text-white text-sm font-black focus:outline-none cursor-pointer min-w-[56px] text-center"
-              >
-                {anosDisponiveis.map(a => (
-                  <option key={a} value={a} className="bg-zinc-900">{a}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => setAnoVigente(a => a + 1)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
-                title="Próximo ano"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
+          {/* Lado Direito: Botão para Expandir / Recolher Calendário Geral */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setMostrarSubTabelaMeses(v => !v)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold border border-zinc-700 transition cursor-pointer"
+              onClick={() => setMostrarSubTabelaMeses(!mostrarSubTabelaMeses)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer border shadow-2xs ${
+                mostrarSubTabelaMeses
+                  ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
+                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200'
+              }`}
+              title="Abrir visão geral de todos os meses e calendário"
             >
+              <CalendarRange className="w-4 h-4 text-red-500" />
+              <span>Visão Anual & Calendário</span>
               {mostrarSubTabelaMeses ? (
-                <><ChevronUp className="w-4 h-4" /><span className="hidden sm:inline">Recolher</span></>
+                <ChevronUp className="w-4 h-4 ml-1" />
               ) : (
-                <><ChevronDown className="w-4 h-4" /><span className="hidden sm:inline">Expandir</span></>
+                <ChevronDown className="w-4 h-4 ml-1" />
               )}
             </button>
           </div>
         </div>
 
-        {/* Sub-tabela de 12 meses do ano vigente */}
+        {/* Linha de Atalhos Rápidos para Dias com Lançamentos */}
+        {datasDisponiveis.length > 0 && (
+          <div className="pt-3 border-t border-zinc-100 flex items-center gap-2.5 overflow-x-auto pb-1 text-xs">
+            <span className="font-bold text-zinc-400 uppercase tracking-wider text-[11px] whitespace-nowrap shrink-0 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Dias com Lançamentos:</span>
+            </span>
+
+            <div className="flex items-center gap-1.5 flex-nowrap">
+              {datasDisponiveis.map((data) => {
+                const count = contagemPorData[data] || 0;
+                const isSelected = activeData === data;
+                return (
+                  <button
+                    key={data}
+                    onClick={() => {
+                      setActiveData(data);
+                      const d = parseDataLocal(data);
+                      setMesExpandidoIndex(d.getMonth());
+                      setAnoVigente(d.getFullYear());
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer border text-xs ${
+                      isSelected
+                        ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                        : 'bg-zinc-50 hover:bg-red-50 text-zinc-700 hover:text-red-700 border-zinc-200'
+                    }`}
+                  >
+                    <span>{formatarDataBR(data)}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      isSelected ? 'bg-white/25 text-white' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* PAINEL EXPANSÍVEL: VISÃO ANUAL (12 MESES) & GRADE MENSAL       */}
+        {/* ============================================================= */}
         {mostrarSubTabelaMeses && (
-          <div className="p-4 sm:p-6">
+          <div className="mt-4 pt-4 border-t border-zinc-200/80 space-y-4 animate-fadeIn">
+            <div className="bg-zinc-900 text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                    Navegação Anual
+                  </span>
+                  <span className="text-sm font-black">
+                    Exercício de {anoVigente} ({totalLancamentosAno} lançamentos registrados)
+                  </span>
+                </div>
+              </div>
+
+              {/* Seletor de Ano */}
+              <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700 self-start sm:self-auto">
+                <button
+                  onClick={() => setAnoVigente(a => a - 1)}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
+                  title="Ano anterior"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <select
+                  value={anoVigente}
+                  onChange={(e) => setAnoVigente(parseInt(e.target.value, 10))}
+                  className="bg-transparent text-white text-xs font-black focus:outline-none cursor-pointer min-w-[56px] text-center"
+                >
+                  {anosDisponiveis.map(a => (
+                    <option key={a} value={a} className="bg-zinc-900">{a}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setAnoVigente(a => a + 1)}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
+                  title="Próximo ano"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
             {/* Grid dos 12 Meses */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
               {MESES.map((nomeMes, mesIdx) => {
                 const mesStr = String(mesIdx + 1).padStart(2, '0');
                 const chave = `${anoVigente}-${mesStr}`;
@@ -512,124 +614,74 @@ export default function RelacaoDiaristas({
                   <button
                     key={nomeMes}
                     onClick={() => handleSelecionarMes(mesIdx)}
-                    className={`relative rounded-2xl border p-3 text-left transition-all cursor-pointer group ${
+                    className={`relative rounded-2xl border p-3 text-left transition-all cursor-pointer ${
                       isSelecionado
-                        ? 'bg-gradient-to-br from-red-600 to-red-700 border-red-600 shadow-lg shadow-red-600/25 text-white'
+                        ? 'bg-red-600 border-red-600 text-white shadow-md'
                         : metrics
-                        ? 'bg-white border-red-200 hover:border-red-400 hover:bg-red-50/40 text-zinc-900 shadow-sm hover:shadow-md'
+                        ? 'bg-white border-red-200 hover:border-red-400 hover:bg-red-50/40 text-zinc-900 shadow-2xs'
                         : isMesHoje
-                        ? 'bg-zinc-100 border-zinc-400 text-zinc-700 hover:bg-zinc-200'
-                        : 'bg-white border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:border-zinc-300'
+                        ? 'bg-zinc-100 border-zinc-300 text-zinc-700'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:bg-white'
                     }`}
                   >
-                    {/* Indicador "Hoje" */}
                     {isMesHoje && !isSelecionado && (
-                      <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500 block" />
+                      <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 block" />
                     )}
 
-                    <div className={`text-xs font-black uppercase tracking-wider mb-1 ${isSelecionado ? 'text-red-100' : 'text-zinc-400'}`}>
+                    <div className={`text-[10px] font-black uppercase tracking-wider mb-0.5 ${isSelecionado ? 'text-red-100' : 'text-zinc-400'}`}>
                       {MESES_ABREV[mesIdx]}
                     </div>
-                    <div className={`text-sm font-black ${isSelecionado ? 'text-white' : 'text-zinc-800'}`}>
+                    <div className={`text-xs font-black ${isSelecionado ? 'text-white' : 'text-zinc-800'}`}>
                       {nomeMes}
                     </div>
 
                     {metrics ? (
-                      <div className="mt-2 space-y-0.5">
-                        <div className={`text-[10px] font-bold ${isSelecionado ? 'text-red-100' : 'text-red-700'}`}>
+                      <div className="mt-1.5 space-y-0.5 text-[10px]">
+                        <div className={`font-bold ${isSelecionado ? 'text-red-100' : 'text-red-700'}`}>
                           R$ {formatarMoeda(metrics.valor)}
                         </div>
-                        <div className={`text-[10px] ${isSelecionado ? 'text-red-200' : 'text-zinc-500'}`}>
-                          {metrics.diaristasUnicos} diarista(s) únicos
-                        </div>
-                        <div className={`text-[10px] ${isSelecionado ? 'text-red-200' : 'text-zinc-500'}`}>
-                          {metrics.diarias} diária(s)
+                        <div className={isSelecionado ? 'text-red-200' : 'text-zinc-500'}>
+                          {metrics.totalRegistros} reg. ({metrics.diarias} diárias)
                         </div>
                       </div>
                     ) : (
-                      <div className={`mt-2 text-[10px] ${isSelecionado ? 'text-red-200' : 'text-zinc-400'} italic`}>
+                      <div className={`mt-1.5 text-[10px] ${isSelecionado ? 'text-red-200' : 'text-zinc-400'} italic`}>
                         Sem registros
                       </div>
-                    )}
-
-                    {/* Botão rápido de relatório que aparece no hover */}
-                    {metrics && !isSelecionado && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAbrirRelatorio(mesIdx, true);
-                        }}
-                        className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg bg-red-100 text-red-700 hover:bg-red-600 hover:text-white"
-                        title={`Baixar PDF de ${nomeMes}`}
-                      >
-                        <FileText className="w-3 h-3" />
-                      </button>
-                    )}
-                    {isSelecionado && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAbrirRelatorio(mesIdx, true);
-                        }}
-                        className="absolute bottom-1.5 right-1.5 p-1 rounded-lg bg-white/20 hover:bg-white/30 text-white transition"
-                        title={`Baixar PDF de ${nomeMes}`}
-                      >
-                        <FileText className="w-3 h-3" />
-                      </button>
                     )}
                   </button>
                 );
               })}
             </div>
 
-            {/* ============================================================= */}
-            {/* SUB-TABELA DOS DIAS DO MÊS SELECIONADO                        */}
-            {/* ============================================================= */}
-            <div className="rounded-2xl border border-zinc-200 overflow-hidden">
-              {/* Cabeçalho da sub-tabela */}
-              <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <CalendarIcon className="w-4 h-4 text-red-200" />
-                  <div>
-                    <span className="text-[10px] text-red-200 uppercase font-bold block">Sub-tabela do Mês</span>
-                    <span className="text-sm font-black">
-                      {MESES[mesExpandidoIndex]} de {anoVigente}
-                    </span>
-                  </div>
+            {/* Sub-tabela do Mês Selecionado (Grade de Dias) */}
+            <div className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-sm">
+              <div className="bg-zinc-100 text-zinc-800 px-4 py-2.5 flex items-center justify-between border-b border-zinc-200">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-red-600" />
+                  <span className="text-xs font-black">
+                    Dias de {MESES[mesExpandidoIndex]} de {anoVigente}
+                  </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  {metricasPorMes[`${anoVigente}-${String(mesExpandidoIndex + 1).padStart(2, '0')}`] && (
-                    <span className="text-[10px] font-bold bg-white/20 px-2.5 py-1 rounded-lg text-white">
-                      {metricasPorMes[`${anoVigente}-${String(mesExpandidoIndex + 1).padStart(2, '0')}`].totalRegistros} registro(s) no mês
-                    </span>
-                  )}
-                  <button
-                    onClick={() => handleAbrirRelatorio(mesExpandidoIndex, true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition cursor-pointer border border-white/20"
-                    title="Gerar relatório mensal em PDF"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Gerar PDF do Mês</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-300 transition cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-red-600" />
+                  <span>Gerar PDF do Mês</span>
+                </button>
               </div>
 
-              {/* Grade dos Dias do Mês */}
-              <div className="p-3 sm:p-4 bg-white">
-                {/* Cabeçalhos dos dias da semana */}
-                <div className="grid grid-cols-7 gap-1 mb-1.5">
+              <div className="p-3">
+                <div className="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-black text-zinc-400 uppercase">
                   {DIAS_SEMANA.map(ds => (
-                    <div key={ds} className="text-center text-[10px] font-black text-zinc-400 uppercase py-1">
-                      {ds}
-                    </div>
+                    <div key={ds} className="py-0.5">{ds}</div>
                   ))}
                 </div>
 
-                {/* Grade dos dias */}
-                <div className="grid grid-cols-7 gap-1.5">
-                  {/* Espaços vazios antes do dia 1 */}
+                <div className="grid grid-cols-7 gap-1">
                   {Array.from({ length: diasDoMesExpandido[0]?.primeiroDiaSemana || 0 }).map((_, i) => (
-                    <div key={`vz-${i}`} className="h-14 sm:h-16 rounded-xl" />
+                    <div key={`espaco-${i}`} className="h-10 sm:h-12 rounded-xl" />
                   ))}
 
                   {diasDoMesExpandido.map((item) => {
@@ -640,30 +692,25 @@ export default function RelacaoDiaristas({
                       <button
                         key={item.dataStr}
                         onClick={() => handleSelecionarDiaDoMes(item.dataStr)}
-                        className={`h-14 sm:h-16 rounded-xl flex flex-col items-center justify-center relative transition-all cursor-pointer border text-xs ${
+                        className={`h-10 sm:h-12 rounded-xl flex flex-col items-center justify-center relative transition-all cursor-pointer border text-xs ${
                           isSelecionado
-                            ? 'bg-gradient-to-br from-red-600 to-red-700 text-white border-red-600 shadow-md font-black'
+                            ? 'bg-red-600 text-white border-red-600 shadow-xs font-black'
                             : item.temLancamento
-                            ? 'bg-red-50 hover:bg-red-100 text-red-950 border-red-200 hover:border-red-400 font-black shadow-sm hover:shadow'
+                            ? 'bg-red-50 hover:bg-red-100 text-red-950 border-red-200 font-black shadow-2xs'
                             : isItemHoje
                             ? 'bg-zinc-100 text-zinc-950 border-zinc-400 font-black'
-                            : 'bg-white hover:bg-zinc-50 text-zinc-600 border-zinc-200 hover:border-zinc-300'
+                            : 'bg-white hover:bg-zinc-50 text-zinc-600 border-zinc-200'
                         }`}
-                        title={item.temLancamento ? `${item.qtd} diarista(s) — R$ ${formatarMoeda(item.valor)}` : `${item.dia}/${String(mesExpandidoIndex + 1).padStart(2, '0')}/${anoVigente}`}
+                        title={item.temLancamento ? `${item.qtd} diarista(s) — R$ ${formatarMoeda(item.valor)}` : formatarDataBR(item.dataStr)}
                       >
-                        <span className="font-black text-sm">{item.dia}</span>
+                        <span className="font-black text-xs leading-none">{item.dia}</span>
                         {item.temLancamento && (
-                          <span className={`text-[9px] font-bold leading-none mt-0.5 ${isSelecionado ? 'text-red-100' : 'text-red-700'}`}>
-                            {item.qtd} {item.qtd === 1 ? 'diar.' : 'diar.'}
-                          </span>
-                        )}
-                        {item.temLancamento && (
-                          <span className={`text-[8px] leading-none mt-0.5 font-semibold ${isSelecionado ? 'text-white/70' : 'text-zinc-500'}`}>
-                            R${formatarMoeda(item.valor)}
+                          <span className={`text-[9px] font-bold leading-none mt-1 ${isSelecionado ? 'text-red-100' : 'text-red-600'}`}>
+                            {item.qtd} d.
                           </span>
                         )}
                         {isItemHoje && !isSelecionado && (
-                          <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
                         )}
                       </button>
                     );
@@ -676,275 +723,38 @@ export default function RelacaoDiaristas({
       </div>
 
       {/* ================================================================= */}
-      {/* 3. SELETOR DIÁRIO — NAVEGAÇÃO POR DIA ATIVO                      */}
-      {/* ================================================================= */}
-      <div className="bg-gradient-to-br from-white via-zinc-50 to-red-50/20 backdrop-blur-md rounded-3xl shadow-xl border-2 border-red-100 p-5 sm:p-7 space-y-4 no-print">
-        
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-          
-          {/* Controles Dia Anterior / Próximo */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={diaAnterior}
-              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-black border border-zinc-200 shadow-sm hover:shadow transition-all cursor-pointer"
-              title="Ir para o Dia Anterior"
-            >
-              <ChevronLeft className="w-4 h-4 text-red-600" />
-              <span>Dia Anterior</span>
-            </button>
-
-            <button
-              onClick={diaSeguinte}
-              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-black border border-zinc-200 shadow-sm hover:shadow transition-all cursor-pointer"
-              title="Ir para o Próximo Dia"
-            >
-              <span>Próximo Dia</span>
-              <ChevronRight className="w-4 h-4 text-red-600" />
-            </button>
-
-            <button
-              onClick={irParaHoje}
-              className={`px-4 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer border shadow-sm ${
-                isHoje
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200'
-              }`}
-            >
-              Hoje
-            </button>
-          </div>
-
-          {/* Destaque do Dia Selecionado */}
-          <div className="flex-1 max-w-xl bg-white rounded-2xl border border-red-200/80 p-3 sm:p-4 shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 to-red-700 text-white flex items-center justify-center shrink-0 shadow-md">
-                <CalendarIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] uppercase font-black tracking-wider text-red-600">
-                  Dia em Visualização:
-                </div>
-                <div className="text-lg sm:text-xl font-black text-zinc-950 flex items-center gap-2">
-                  <span>{formatarDataBR(activeData)}</span>
-                  {isHoje && (
-                    <span className="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full uppercase">
-                      Hoje
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-zinc-500 font-medium">
-                  {formatarDataExtenso(activeData)}
-                </div>
-              </div>
-            </div>
-
-            {/* Input de Data Nativo */}
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="input-seletor-data"
-                className="relative inline-flex items-center justify-center p-2.5 rounded-xl bg-zinc-100 hover:bg-red-50 text-zinc-700 hover:text-red-700 border border-zinc-200 hover:border-red-300 transition cursor-pointer"
-                title="Escolher outra data no calendário"
-              >
-                <CalendarDays className="w-4 h-4" />
-                <input
-                  id="input-seletor-data"
-                  type="date"
-                  value={activeData}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setActiveData(e.target.value);
-                      const d = parseDataLocal(e.target.value);
-                      setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
-                      setMesExpandidoIndex(d.getMonth());
-                      setAnoVigente(d.getFullYear());
-                    }
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-              </label>
-
-              <button
-                onClick={() => setMostrarCalendario(!mostrarCalendario)}
-                className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold border border-zinc-200 transition cursor-pointer"
-                title="Abrir visão mensal completa"
-              >
-                {mostrarCalendario ? 'Fechar Mês' : 'Ver Mês'}
-              </button>
-            </div>
-          </div>
-
-          {/* Badge de Resumo do Dia Ativo */}
-          <div className="bg-zinc-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-md flex items-center justify-between lg:justify-end gap-4 min-w-[200px]">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
-                Total do Dia ({formatarDataBR(activeData)}):
-              </span>
-              <span className="text-lg font-black text-emerald-400">
-                R$ {formatarMoeda(totalValorGeral)}
-              </span>
-            </div>
-            <div className="text-right border-l border-zinc-800 pl-3">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
-                Diaristas
-              </span>
-              <span className="text-base font-black text-white">
-                {diaristasDoDia.length}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Atalhos Rápidos para Dias Cadastrados */}
-        {datasDisponiveis.length > 0 && (
-          <div className="pt-3 border-t border-zinc-200/80 flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-xs font-black text-zinc-400 uppercase tracking-wider whitespace-nowrap">
-              Dias Cadastrados:
-            </span>
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              {datasDisponiveis.map((data) => {
-                const count = contagemPorData[data] || 0;
-                const isSelected = activeData === data;
-                return (
-                  <button
-                    key={data}
-                    onClick={() => {
-                      setActiveData(data);
-                      const d = parseDataLocal(data);
-                      setMesAtual(new Date(d.getFullYear(), d.getMonth(), 1));
-                      setMesExpandidoIndex(d.getMonth());
-                      setAnoVigente(d.getFullYear());
-                    }}
-                    className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${
-                      isSelected
-                        ? 'bg-red-600 text-white border-red-600 shadow-md font-black'
-                        : 'bg-white hover:bg-red-50 text-zinc-700 border-zinc-200 hover:border-red-200 shadow-2xs'
-                    }`}
-                  >
-                    <span>{formatarDataBR(data)}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                      isSelected ? 'bg-white/25 text-white' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {count} {count === 1 ? 'diarista' : 'diaristas'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Grade do Calendário Mensal Opcional */}
-        {mostrarCalendario && (
-          <div className="pt-4 border-t border-zinc-200/80 grid grid-cols-1 md:grid-cols-12 gap-6 items-center animate-fadeIn">
-            <div className="md:col-span-4 bg-zinc-100/80 rounded-2xl p-4 border border-zinc-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase text-zinc-500">Navegar no Mês</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={anteriorMes}
-                    className="p-1.5 rounded-xl bg-white hover:bg-zinc-200 border border-zinc-200 text-zinc-700 transition cursor-pointer shadow-xs"
-                    title="Mês Anterior"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={proximoMes}
-                    className="p-1.5 rounded-xl bg-white hover:bg-zinc-200 border border-zinc-200 text-zinc-700 transition cursor-pointer shadow-xs"
-                    title="Próximo Mês"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="text-xl font-black text-zinc-900">
-                {MESES[mesAtualIndex]} de {anoAtual}
-              </div>
-              <p className="text-xs text-zinc-600">
-                Clique em qualquer dia para filtrar e ver a relação específica daquela data.
-              </p>
-            </div>
-
-            <div className="md:col-span-8">
-              <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-black text-zinc-400 mb-1.5">
-                {DIAS_SEMANA.map((diaSemana) => (
-                  <div key={diaSemana} className="py-0.5 uppercase text-[11px]">
-                    {diaSemana}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1.5">
-                {diasArray.map((item, idx) => {
-                  if (!item) {
-                    return <div key={`vazio-${idx}`} className="h-10 rounded-xl" />;
-                  }
-
-                  const isSelecionado = activeData === item.dataStr;
-                  const itemIsHoje = item.dataStr === hoje;
-
-                  return (
-                    <button
-                      key={item.dataStr}
-                      type="button"
-                      onClick={() => {
-                        setActiveData(item.dataStr);
-                        const d = parseDataLocal(item.dataStr);
-                        setMesExpandidoIndex(d.getMonth());
-                        setAnoVigente(d.getFullYear());
-                      }}
-                      className={`h-10 rounded-xl font-bold text-xs flex flex-col items-center justify-center relative transition-all cursor-pointer border ${
-                        isSelecionado
-                          ? 'bg-gradient-to-r from-red-600 to-red-700 text-white border-red-600 shadow-md font-black'
-                          : item.temDiaristas
-                          ? 'bg-red-50 hover:bg-red-100 text-red-950 border-red-200 hover:border-red-400 font-black shadow-2xs'
-                          : itemIsHoje
-                          ? 'bg-zinc-100 text-zinc-950 border-zinc-400 font-black'
-                          : 'bg-white hover:bg-zinc-100 text-zinc-700 border-zinc-200'
-                      }`}
-                    >
-                      <span>{item.dia}</span>
-                      {item.temDiaristas && (
-                        <span
-                          className={`inline-block w-1.5 h-1.5 rounded-full mt-0.5 ${
-                            isSelecionado ? 'bg-white' : 'bg-red-600'
-                          }`}
-                          title={`${item.qtd} diarista(s)`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ================================================================= */}
-      {/* 4. TOTALIZADORES EXECUTIVOS DO DIA SELECIONADO                   */}
+      {/* 3. TOTALIZADORES EXECUTIVOS DO DIA ATIVO                         */}
       {/* ================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-md hover:shadow-lg transition-all flex items-center gap-4">
+        {/* Diaristas no Dia */}
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
             <Users className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Diaristas no Dia</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Diaristas no Dia
+            </span>
             <div className="text-2xl font-black text-zinc-900">
-              {listaFiltrada.length}{' '}
-              <span className="text-xs font-semibold text-zinc-400">
-                ({diaristasDoDia.length} no dia)
-              </span>
+              {diaristasDoDia.length}
+              {busca && listaFiltrada.length !== diaristasDoDia.length && (
+                <span className="text-xs font-semibold text-zinc-400 ml-1.5">
+                  ({listaFiltrada.length} filtrado{listaFiltrada.length === 1 ? '' : 's'})
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-md hover:shadow-lg transition-all flex items-center gap-4">
+        {/* Total de Diárias */}
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-            <CalendarIcon className="w-6 h-6 text-amber-600" />
+            <Clock className="w-6 h-6 text-amber-600" />
           </div>
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Diárias no Dia</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Diárias Computadas
+            </span>
             <div className="text-2xl font-black text-zinc-900">
               {totalDiariasQtd}{' '}
               <span className="text-xs font-semibold text-zinc-400">diária(s)</span>
@@ -952,12 +762,15 @@ export default function RelacaoDiaristas({
           </div>
         </div>
 
+        {/* Total a Pagar no Dia */}
         <div className="bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 text-white rounded-3xl p-5 border border-zinc-800 shadow-xl flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
             <DollarSign className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total do Dia</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Total a Pagar no Dia
+            </span>
             <div className="text-2xl font-black text-emerald-400">
               R$ {formatarMoeda(totalValorGeral)}
             </div>
@@ -966,50 +779,40 @@ export default function RelacaoDiaristas({
       </div>
 
       {/* ================================================================= */}
-      {/* 5. BARRA DE BUSCA                                                 */}
-      {/* ================================================================= */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-zinc-200/80 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4 no-print">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome ou PIX do dia..."
-            className="w-full pl-11 pr-4 py-2.5 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 bg-zinc-50/50"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs font-bold text-zinc-500 bg-zinc-100 px-3.5 py-2 rounded-xl border border-zinc-200">
-            {listaFiltrada.length} diarista(s) listado(s)
-          </span>
-        </div>
-      </div>
-
-      {/* ================================================================= */}
-      {/* 6. TABELA PRINCIPAL DA RELAÇÃO DO DIA                            */}
+      {/* 4. TABELA PRINCIPAL DA RELAÇÃO DE DIARISTAS DO DIA               */}
       {/* ================================================================= */}
       <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 overflow-hidden w-full no-print">
         
-        <div className="p-5 bg-gradient-to-r from-zinc-50 to-zinc-100/70 border-b border-zinc-200/80 flex items-center justify-between flex-wrap gap-3">
+        {/* Barra Superior da Tabela: Título do Dia + Busca Integrada */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-zinc-50 to-zinc-100/80 border-b border-zinc-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center">
-              <CalendarIcon className="w-3.5 h-3.5" />
+            <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-2xs">
+              <CalendarIcon className="w-4 h-4" />
             </div>
-            <h3 className="text-sm font-black uppercase tracking-wider text-zinc-900">
-              Relação de Diaristas do Dia — {formatarDataBR(activeData)}
-            </h3>
+            <div>
+              <h2 className="text-sm sm:text-base font-black text-zinc-900 tracking-tight">
+                Lançamentos de {formatarDataBR(activeData)}
+              </h2>
+              <span className="text-xs text-zinc-500 font-medium">
+                {formatarDataExtenso(activeData)}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-zinc-700 bg-white px-3.5 py-1.5 rounded-full border border-zinc-200/80 shadow-2xs">
-              {listaFiltrada.length} registro(s) no dia • Total do Dia:{' '}
-              <strong className="text-red-600">R$ {formatarMoeda(totalValorGeral)}</strong>
-            </span>
+          {/* Campo de Busca Rápida */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome, função ou PIX..."
+              className="w-full pl-10 pr-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-xs sm:text-sm font-medium text-zinc-900 placeholder:text-zinc-400 bg-white shadow-2xs"
+            />
           </div>
         </div>
 
+        {/* Tabela de Diaristas */}
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-sm table-auto">
             <thead className="bg-zinc-100/90 border-b border-zinc-200 text-zinc-700 text-xs font-black uppercase tracking-wider">
@@ -1029,49 +832,65 @@ export default function RelacaoDiaristas({
             <tbody className="divide-y divide-zinc-200/80">
               {listaFiltrada.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-16 text-center text-zinc-500">
-                    <div className="max-w-md mx-auto space-y-4">
-                      <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 mx-auto flex items-center justify-center">
+                  <td colSpan="7" className="py-14 text-center text-zinc-500">
+                    <div className="max-w-md mx-auto space-y-4 px-4">
+                      <div className="w-14 h-14 rounded-3xl bg-red-50 text-red-600 mx-auto flex items-center justify-center shadow-xs">
                         <AlertCircle className="w-7 h-7" />
                       </div>
                       <div>
-                        <h4 className="text-base font-black text-zinc-800">
+                        <h4 className="text-base font-black text-zinc-900">
                           Nenhum diarista para {formatarDataBR(activeData)}
                         </h4>
                         <p className="text-xs text-zinc-500 mt-1">
                           {busca
-                            ? 'Nenhum diarista encontrado com os termos pesquisados nesta data.'
-                            : `Não há diaristas cadastrados para o dia ${formatarDataBR(activeData)}.`}
+                            ? 'Nenhum diarista encontrado com os termos da pesquisa nesta data.'
+                            : `Não há diaristas cadastrados no dia ${formatarDataBR(activeData)}.`}
                         </p>
                       </div>
 
+                      {/* Botões de Ação Rápida */}
                       <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                         <button
                           onClick={onNavigateCadastrar}
-                          className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md transition cursor-pointer"
                         >
-                          + Cadastrar Diarista para este Dia
+                          + Cadastrar Diarista neste Dia
                         </button>
 
                         {!isHoje && (
                           <button
                             onClick={irParaHoje}
-                            className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200 transition cursor-pointer"
+                            className="px-4 py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200 transition cursor-pointer"
                           >
                             Ir para Hoje ({formatarDataBR(hoje)})
                           </button>
                         )}
-
-                        {onResetDiaristas && diaristas.length === 0 && (
-                          <button
-                            onClick={onResetDiaristas}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 text-white text-xs font-bold transition cursor-pointer shadow-xs"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            <span>Restaurar Lista Padrão</span>
-                          </button>
-                        )}
                       </div>
+
+                      {/* Sugestão de dias disponíveis */}
+                      {datasDisponiveis.length > 0 && (
+                        <div className="pt-3 border-t border-zinc-100">
+                          <span className="text-[11px] font-bold text-zinc-400 block mb-2">
+                            Ou navegue para um dia com lançamentos existentes:
+                          </span>
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            {datasDisponiveis.slice(0, 5).map((data) => (
+                              <button
+                                key={data}
+                                onClick={() => {
+                                  setActiveData(data);
+                                  const d = parseDataLocal(data);
+                                  setMesExpandidoIndex(d.getMonth());
+                                  setAnoVigente(d.getFullYear());
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-red-50 text-zinc-700 hover:text-red-700 border border-zinc-200 text-[11px] font-bold transition cursor-pointer"
+                              >
+                                {formatarDataBR(data)} ({contagemPorData[data]})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1084,23 +903,29 @@ export default function RelacaoDiaristas({
                   return (
                     <tr key={item.id} className="hover:bg-zinc-50/90 transition-colors group">
                       
+                      {/* Diarista (Nome + Função) */}
                       <td className="py-3.5 px-4 font-black text-zinc-900 uppercase whitespace-nowrap">
-                        {item.nome}
+                        <div className="flex items-center gap-2">
+                          <span>{item.nome}</span>
+                        </div>
                         {(item.motorista || item.profissao) && (
-                          <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">
+                          <div className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-bold uppercase tracking-wider">
                             {item.motorista || item.profissao}
                           </div>
                         )}
                       </td>
 
+                      {/* Data */}
                       <td className="py-3.5 px-3 text-center text-xs font-semibold text-zinc-600 whitespace-nowrap">
                         {formatarDataBR(item.data)}
                       </td>
 
+                      {/* Valor Unitário */}
                       <td className="py-3.5 px-3 text-right font-semibold text-zinc-700 whitespace-nowrap">
-                        R$ {valorUnitario.toFixed(2).replace('.', ',')}
+                        R$ {formatarMoeda(valorUnitario)}
                       </td>
 
+                      {/* Qtd Diárias (Controle - e +) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 bg-zinc-100/90 px-2 py-1 rounded-xl border border-zinc-200 shadow-2xs">
                           {onUpdateDiarista && (
@@ -1130,19 +955,21 @@ export default function RelacaoDiaristas({
                         </div>
                       </td>
 
+                      {/* Total do Diarista */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap bg-red-50/40 border-x border-red-200/60">
                         <div className="font-black text-red-700 text-base tracking-tight">
-                          R$ {valorTotalDiarista.toFixed(2).replace('.', ',')}
+                          R$ {formatarMoeda(valorTotalDiarista)}
                         </div>
                         {qtdDiarias > 1 && (
                           <span className="text-[10px] text-zinc-400 block font-semibold">
-                            ({qtdDiarias}x R$ {valorUnitario.toFixed(2).replace('.', ',')})
+                            ({qtdDiarias}x R$ {formatarMoeda(valorUnitario)})
                           </span>
                         )}
                       </td>
 
+                      {/* Chave PIX com botão copiar */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100/90 px-3 py-1.5 rounded-xl border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition shadow-2xs">
+                        <div className="inline-flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition shadow-2xs">
                           <span>{item.pix || 'Não informado'}</span>
                           {item.pix && (
                             <button
@@ -1160,11 +987,12 @@ export default function RelacaoDiaristas({
                         </div>
                       </td>
 
+                      {/* Ações */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap no-print">
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => onEmitirRecibo && onEmitirRecibo(item)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-all cursor-pointer shadow-xs hover:shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
                             title="Emitir Recibo Individual deste Diarista"
                           >
                             <FileText className="w-3.5 h-3.5 text-red-600" />
@@ -1188,22 +1016,23 @@ export default function RelacaoDiaristas({
               )}
             </tbody>
 
+            {/* Rodapé Consolidado */}
             <tfoot className="bg-zinc-900 text-white font-black text-sm">
               <tr>
-                <td className="py-4 px-4 uppercase tracking-wider">
+                <td className="py-3.5 px-4 uppercase tracking-wider text-xs">
                   TOTAL DO DIA ({formatarDataBR(activeData)})
                 </td>
-                <td className="py-4 px-3 text-center text-xs font-semibold text-zinc-400">
+                <td className="py-3.5 px-3 text-center text-xs font-semibold text-zinc-400">
                   {listaFiltrada.length} diarista(s)
                 </td>
-                <td className="py-4 px-3 text-right text-xs text-zinc-400">—</td>
-                <td className="py-4 px-3 text-center text-amber-400 text-base font-black">
+                <td className="py-3.5 px-3 text-right text-xs text-zinc-400">—</td>
+                <td className="py-3.5 px-3 text-center text-amber-400 text-base font-black">
                   {totalDiariasQtd}
                 </td>
-                <td className="py-4 px-4 text-right text-emerald-400 text-lg font-black bg-zinc-950/90">
+                <td className="py-3.5 px-4 text-right text-emerald-400 text-base font-black bg-zinc-950/90">
                   R$ {formatarMoeda(totalValorGeral)}
                 </td>
-                <td colSpan="2" className="py-4 px-4 text-right text-xs font-normal text-zinc-400">
+                <td colSpan="2" className="py-3.5 px-4 text-right text-xs font-normal text-zinc-400">
                   Distribuidora Irmãos Barreiro de Bebidas Ltda.
                 </td>
               </tr>
@@ -1213,7 +1042,7 @@ export default function RelacaoDiaristas({
       </div>
 
       {/* ================================================================= */}
-      {/* 7. VERSÃO EXCLUSIVA DE IMPRESSÃO LIMPA DO DIA (PRINT)            */}
+      {/* 5. VERSÃO EXCLUSIVA DE IMPRESSÃO LIMPA DO DIA (PRINT)            */}
       {/* ================================================================= */}
       <div className="hidden print:block print-clean p-4 font-sans text-black">
         <div className="border-b-2 border-black pb-3 mb-4 flex justify-between items-start">
@@ -1263,9 +1092,9 @@ export default function RelacaoDiaristas({
                     <td className="p-2 border font-bold uppercase">{item.nome}</td>
                     <td className="p-2 border">{item.motorista || item.profissao || '—'}</td>
                     <td className="p-2 border text-center">{formatarDataBR(item.data)}</td>
-                    <td className="p-2 border text-right">R$ {val.toFixed(2).replace('.', ',')}</td>
+                    <td className="p-2 border text-right">R$ {formatarMoeda(val)}</td>
                     <td className="p-2 border text-center font-bold">{qtd}</td>
-                    <td className="p-2 border text-right font-black">R$ {(val * qtd).toFixed(2).replace('.', ',')}</td>
+                    <td className="p-2 border text-right font-black">R$ {formatarMoeda(val * qtd)}</td>
                     <td className="p-2 border font-mono">{item.pix || '—'}</td>
                   </tr>
                 );
@@ -1301,3 +1130,4 @@ export default function RelacaoDiaristas({
     </div>
   );
 }
+

@@ -45,6 +45,7 @@ import {
   updateEntregaEpiApi,
   getEpiEntregaPdfUrl,
   getColaboradorFichaPdfUrl,
+  baixarColaboradorFichaPdfApi,
   carregarPadraoImagem1Api,
   getFuncionariosEpiApi,
   criarFuncionarioEpiApi
@@ -101,16 +102,39 @@ export default function ControleEPIs({ onBack }) {
   // Sub-aba da Planilha de Estoque (Filtro de Categoria)
   const [activeCategoriaTab, setActiveCategoriaTab] = useState('TODOS');
 
-  // Estados de Estoque
-  const [epis, setEpis] = useState([]);
-  const [loadingEpis, setLoadingEpis] = useState(true);
+  // Estados de Estoque com cache na sessão (sessionStorage evita persistência em disco DEV-04)
+  const [epis, setEpis] = useState(() => {
+    try {
+      localStorage.removeItem('epis_estoque_cache'); // higienização de cache persistente antigo
+      const salvo = sessionStorage.getItem('epis_estoque_cache');
+      return salvo ? JSON.parse(salvo) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loadingEpis, setLoadingEpis] = useState(() => {
+    try {
+      const salvo = sessionStorage.getItem('epis_estoque_cache');
+      return !salvo;
+    } catch {
+      return true;
+    }
+  });
   const [buscaEstoque, setBuscaEstoque] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState(''); // '' | 'COMPRAR' | 'OK'
   const [modalEpiAberto, setModalEpiAberto] = useState(false);
   const [epiEditando, setEpiEditando] = useState(null);
 
-  // Estados de Funcionários e Distribuição
-  const [funcionarios, setFuncionarios] = useState([]);
+  // Estados de Funcionários e Distribuição com cache em sessionStorage
+  const [funcionarios, setFuncionarios] = useState(() => {
+    try {
+      localStorage.removeItem('epis_funcionarios_cache'); // higienização de cache persistente antigo
+      const salvo = sessionStorage.getItem('epis_funcionarios_cache');
+      return salvo ? JSON.parse(salvo) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loadingFuncionarios, setLoadingFuncionarios] = useState(false);
   const [buscaFuncionario, setBuscaFuncionario] = useState('');
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState(null);
@@ -176,11 +200,21 @@ export default function ControleEPIs({ onBack }) {
     try {
       setLoadingEpis(true);
       const data = await getEpisApi({ busca: buscaEstoque, situacao: filtroSituacao });
-      setEpis(data);
+      if (data && Array.isArray(data)) {
+        setEpis(data);
+        if (!buscaEstoque && !filtroSituacao) {
+          sessionStorage.setItem('epis_estoque_cache', JSON.stringify(data));
+        }
+      }
       setMensagemErro('');
     } catch (err) {
       console.error(err);
-      setMensagemErro('Erro ao carregar catálogo de EPIs.');
+      const cached = sessionStorage.getItem('epis_estoque_cache');
+      if (cached) {
+        try {
+          setEpis(JSON.parse(cached));
+        } catch (e) {}
+      }
     } finally {
       setLoadingEpis(false);
     }
@@ -191,10 +225,18 @@ export default function ControleEPIs({ onBack }) {
     try {
       setLoadingFuncionarios(true);
       const data = await getFuncionariosEpiApi().catch(() => []);
-      setFuncionarios(data || []);
+      if (data && Array.isArray(data)) {
+        setFuncionarios(data);
+        sessionStorage.setItem('epis_funcionarios_cache', JSON.stringify(data));
+      }
     } catch (err) {
       console.error(err);
-      setFuncionarios([]);
+      const cached = sessionStorage.getItem('epis_funcionarios_cache');
+      if (cached) {
+        try {
+          setFuncionarios(JSON.parse(cached));
+        } catch (e) {}
+      }
     } finally {
       setLoadingFuncionarios(false);
     }
@@ -240,16 +282,16 @@ export default function ControleEPIs({ onBack }) {
     }
   }, [mensagemSucesso, mensagemErro]);
 
-  // CARREGAR TABELA PADRÃO DA IMAGEM 1
+  // CARREGAR TABELA DE EPI
   const handleCarregarTabelaPadrao = async () => {
-    if (!window.confirm('Deseja carregar no estoque os 26 itens oficiais da planilha física (Imagem 1)?')) return;
+    if (!window.confirm('Deseja carregar no estoque a tabela oficial de EPIs?')) return;
     try {
       setLoadingEpis(true);
       const res = await carregarPadraoImagem1Api();
-      setMensagemSucesso(res.mensagem);
-      carregarEpis();
+      setMensagemSucesso(res.mensagem || 'Tabela de EPIs carregada com sucesso!');
+      await carregarEpis();
     } catch (err) {
-      setMensagemErro(err.message || 'Erro ao carregar itens da Imagem 1.');
+      setMensagemErro(err.message || 'Erro ao carregar tabela de EPIs.');
     } finally {
       setLoadingEpis(false);
     }
@@ -635,10 +677,10 @@ export default function ControleEPIs({ onBack }) {
               <button
                 onClick={handleCarregarTabelaPadrao}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black shadow-xs transition cursor-pointer"
-                title="Carregar todos os itens exatamente iguais à foto física da Imagem 1"
+                title="Carregar tabela oficial de EPIs no estoque"
               >
                 <Sparkles className="w-4 h-4 text-amber-300 stroke-[2.5]" />
-                Carregar Tabela da Foto (Imagem 1)
+                CARREGAR TABELA DE EPI
               </button>
 
               <button
@@ -662,7 +704,7 @@ export default function ControleEPIs({ onBack }) {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-black shadow-xs transition cursor-pointer"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                + Inserir Linha
+                INSERIR EPI
               </button>
             </div>
           </div>
@@ -721,7 +763,7 @@ export default function ControleEPIs({ onBack }) {
                       <td colSpan="11" className="py-16 text-center text-slate-800 space-y-2">
                         <p className="font-black text-sm">Nenhum EPI encontrado nesta categoria.</p>
                         <p className="text-xs text-slate-600 font-bold">
-                          Clique no botão <b>"Carregar Tabela da Foto (Imagem 1)"</b> acima para popular os itens automaticamente.
+                          Clique no botão <b>"CARREGAR TABELA DE EPI"</b> acima para popular os itens automaticamente.
                         </p>
                       </td>
                     </tr>
@@ -973,9 +1015,15 @@ export default function ControleEPIs({ onBack }) {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
-                          onClick={() => {
-                            const url = getColaboradorFichaPdfUrl(func.nome);
-                            window.open(url, '_blank');
+                          onClick={async () => {
+                            try {
+                              const blob = await baixarColaboradorFichaPdfApi(func.nome);
+                              const blobUrl = URL.createObjectURL(blob);
+                              window.open(blobUrl, '_blank', 'noopener,noreferrer');
+                              setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                            } catch (err) {
+                              alert(err?.message || 'Erro ao abrir o PDF da Ficha de EPI.');
+                            }
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-700 hover:text-white font-black text-xs border border-red-200 transition cursor-pointer"
                           title="Baixar PDF da Ficha de EPI deste funcionário"

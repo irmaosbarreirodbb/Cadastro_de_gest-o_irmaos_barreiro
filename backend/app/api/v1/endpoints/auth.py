@@ -35,20 +35,37 @@ def login(login_data: LoginRequest, request: Request, response: Response, db: Se
     # permitir contexto cross-site em produção. Continua protegido por HTTPS e
     # inacessível ao JavaScript.
     is_production = settings.ENVIRONMENT != "development"
+    cookie_max_age = int(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
     response.set_cookie(
         key="barreiro_session",
         value=token,
         httponly=True,
         secure=is_production,
         samesite="none" if is_production else "lax",
-        max_age=8 * 60 * 60,
+        max_age=cookie_max_age,
         path="/",
     )
     return {
-        "access_token": "",
+        "access_token": token,
         "token_type": "bearer",
-        "user": UserOut.model_validate(user)
+        "user": UserOut.model_validate(user),
+        "message": "Autenticado com sucesso."
     }
+
+@router.post("/logout")
+def logout(response: Response):
+    """
+    Encerra a sessão ativa e revoga o cookie HttpOnly do navegador.
+    """
+    is_production = settings.ENVIRONMENT != "development"
+    response.delete_cookie(
+        key="barreiro_session",
+        path="/",
+        secure=is_production,
+        httponly=True,
+        samesite="none" if is_production else "lax",
+    )
+    return {"status": "ok", "message": "Sessão encerrada com sucesso."}
 
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: Usuario = Depends(get_current_user)):

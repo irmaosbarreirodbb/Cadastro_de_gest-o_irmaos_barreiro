@@ -26,7 +26,12 @@ def _descriptografar(item: PessoaJuridicaCadastro):
 
 
 @router.post("", response_model=PessoaJuridicaOut, status_code=status.HTTP_201_CREATED)
-def criar_pessoa_juridica(dados: PessoaJuridicaCreate, request: Request, db: Session = Depends(get_db)):
+def criar_pessoa_juridica(
+    dados: PessoaJuridicaCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     enforce_rate_limit(request, "cadastro-pessoa-juridica", limit=10, window_seconds=3600)
     dados_dict = dados.model_dump()
     for campo in _CAMPOS_CRIPTOGRAFADOS:

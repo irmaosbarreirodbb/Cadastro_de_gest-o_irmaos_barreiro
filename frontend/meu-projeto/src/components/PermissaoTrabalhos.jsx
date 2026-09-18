@@ -802,9 +802,24 @@ export default function PermissaoTrabalhos({ onBack }) {
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
   const [ptVisualizada, setPtVisualizada] = useState(null);
 
-  // Lista de PTs do banco de dados
-  const [listaPts, setListaPts] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  // Lista de PTs com cache na sessão (sessionStorage DEV-04)
+  const [listaPts, setListaPts] = useState(() => {
+    try {
+      localStorage.removeItem('lista_pts_cache'); // higienização de cache antigo
+      const salvo = sessionStorage.getItem('lista_pts_cache');
+      return salvo ? JSON.parse(salvo) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [carregando, setCarregando] = useState(() => {
+    try {
+      const salvo = sessionStorage.getItem('lista_pts_cache');
+      return !salvo;
+    } catch {
+      return true;
+    }
+  });
 
   // Filtros e busca
   const [filtroStatus, setFiltroStatus] = useState('TODAS'); // 'TODAS' | 'EMITIDA' | 'APROVADA' | 'ENCERRADA'
@@ -815,9 +830,17 @@ export default function PermissaoTrabalhos({ onBack }) {
     setCarregando(true);
     try {
       const resultado = await getPTsApi();
-      setListaPts(Array.isArray(resultado) ? resultado : []);
+      if (Array.isArray(resultado)) {
+        setListaPts(resultado);
+        sessionStorage.setItem('lista_pts_cache', JSON.stringify(resultado));
+      }
     } catch {
-      setListaPts([]);
+      const salvo = sessionStorage.getItem('lista_pts_cache');
+      if (salvo) {
+        try {
+          setListaPts(JSON.parse(salvo));
+        } catch (e) {}
+      }
     } finally {
       setCarregando(false);
     }

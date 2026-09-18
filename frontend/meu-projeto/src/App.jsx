@@ -6,7 +6,7 @@ import Historia from './components/Historia';
 import Footer from './components/Footer';
 import PoliticaPrivacidade from './components/PoliticaPrivacidade';
 
-import { getAuthToken, getCurrentUserApi, removeAuthToken } from './services/api';
+import { getCurrentUserApi, logoutApi, clearAllAppStorage } from './services/api';
 
 function Home({ isLoggedIn, user, onLogin, onLogout }) {
   // Estado do modal de login elevado para cá, para que o Hero da home
@@ -40,28 +40,55 @@ function Home({ isLoggedIn, user, onLogin, onLogout }) {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('user_barreiro');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('user_barreiro');
+      return !!saved;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     let active = true;
 
-    async function restoreValidatedSession() {
-      if (!getAuthToken()) return;
+    // Higienização inicial de qualquer chave antiga que possa ter persistido no localStorage (DEV-04)
+    try {
+      [
+        'barreiro_token',
+        'user_barreiro',
+        'registros_funcionarios_cache',
+        'epis_estoque_cache',
+        'epis_funcionarios_cache',
+        'lista_pts_cache',
+        'diaristas_cache',
+        'portal_active_module',
+        'data_selecionada_diaristas',
+      ].forEach((k) => localStorage.removeItem(k));
+    } catch {}
 
+    async function restoreValidatedSession() {
       try {
         const currentUser = await getCurrentUserApi();
-        if (active) {
+        if (active && currentUser) {
           setUser(currentUser);
           setIsLoggedIn(true);
+          sessionStorage.setItem('user_barreiro', JSON.stringify(currentUser));
         }
-      } catch {
-        // Do not allow an old token to unlock the portal without the API.
-        removeAuthToken();
-        try {
-          sessionStorage.removeItem('user_barreiro');
-        } catch {
-          // Storage is unavailable; there is no session to keep.
+      } catch (err) {
+        if (active) {
+          setIsLoggedIn(false);
+          setUser(null);
+          clearAllAppStorage();
         }
       }
     }
@@ -82,14 +109,14 @@ function App() {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     setIsLoggedIn(false);
     setUser(null);
-    removeAuthToken();
     try {
-      sessionStorage.removeItem('user_barreiro');
+      await logoutApi();
     } catch (err) {
-      console.warn('Erro ao limpar dados de sessão:', err);;
+      console.warn('Erro ao encerrar sessão:', err);
+      clearAllAppStorage();
     }
   }
 

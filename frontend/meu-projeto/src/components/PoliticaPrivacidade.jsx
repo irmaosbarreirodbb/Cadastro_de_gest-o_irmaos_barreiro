@@ -270,7 +270,7 @@ export default function PoliticaPrivacidade() {
             <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1">
               <div>
                 <span className="text-xs text-zinc-400 font-semibold block">E-mail para Privacidade &amp; LGPD:</span>
-                <span className="text-white font-bold text-sm sm:text-base">privacidade@distribuidorabarreiro.com.br</span>
+                <span className="text-white font-bold text-sm sm:text-base">suporte@irmaosbarreiro.com</span>
               </div>
               <div className="text-xs text-zinc-400">
                 Sede: Cascavel - CE • Distrito Industrial

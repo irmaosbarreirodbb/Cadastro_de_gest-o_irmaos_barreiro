@@ -338,8 +338,14 @@ def buscar_funcionarios_base(
                         data_entrada=d.data,
                         created_at=d.created_at
                     )
-            elif prof_limpo and not mapa[chave].profissao:
-                mapa[chave].profissao = prof_limpo
+            else:
+                if prof_limpo and not mapa[chave].profissao:
+                    mapa[chave].profissao = prof_limpo
+                pix_limpo = decrypt_val(d.chave_pix)
+                if pix_limpo and not mapa[chave].chave_pix:
+                    mapa[chave].chave_pix = pix_limpo
+                    if d.tipo_pix:
+                        mapa[chave].tipo_pix = d.tipo_pix
 
     # A primeira diária prevalece sobre qualquer data cadastrada manualmente
     # ao sugerir o funcionário para o registro individual.
@@ -354,20 +360,26 @@ def buscar_funcionarios_base(
         chave = nome.upper()
         if chave:
             prof_limpo = fb.profissao or ""
+            fb_pix = decrypt_val(fb.chave_pix)
             if chave not in mapa:
-                if not termo or (termo in nome.lower() or termo in prof_limpo.lower()):
+                if not termo or (termo in nome.lower() or termo in prof_limpo.lower() or (fb_pix and termo in fb_pix.lower())):
                     mapa[chave] = FuncionarioBaseOut(
                         id=fb.id,
                         nome=chave,
                         profissao=prof_limpo,
                         tipo_pix=fb.tipo_pix or "cpf",
-                        chave_pix=decrypt_val(fb.chave_pix),
+                        chave_pix=fb_pix,
                         ativo=True,
                         data_entrada=fb.data_entrada,
                         created_at=fb.created_at
                     )
-            elif prof_limpo and not mapa[chave].profissao:
-                mapa[chave].profissao = prof_limpo
+            else:
+                if prof_limpo and not mapa[chave].profissao:
+                    mapa[chave].profissao = prof_limpo
+                if fb_pix and not mapa[chave].chave_pix:
+                    mapa[chave].chave_pix = fb_pix
+                    if fb.tipo_pix:
+                        mapa[chave].tipo_pix = fb.tipo_pix
 
     resultado = list(mapa.values())
     resultado.sort(key=lambda x: x.nome)

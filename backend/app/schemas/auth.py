@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 class LoginRequest(BaseModel):
@@ -12,6 +13,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class Token(BaseModel):
-    access_token: str
+    access_token: Optional[str] = None
     token_type: str = "bearer"
     user: UserOut
+    message: Optional[str] = None

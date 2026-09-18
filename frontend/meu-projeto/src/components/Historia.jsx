@@ -49,7 +49,7 @@ export default function Historia({ isLoggedIn, onOpenLogin }) {
     <section
       className="relative overflow-hidden text-zinc-900"
       style={{
-        backgroundImage: "url('/images/fundo_distribuidora_barreiro.jpg')",
+        backgroundImage: "url('/images/fundo_distribuidora_barreiro_corrigido3.jpg')",
         backgroundSize: 'cover',
         backgroundPosition: 'center top',
         backgroundAttachment: 'fixed',
@@ -69,7 +69,7 @@ export default function Historia({ isLoggedIn, onOpenLogin }) {
             SISTEMA DE GESTÃO <span className="text-white/50 font-light">|</span> <span className="whitespace-nowrap text-white font-extrabold">IRMÃOS BARREIRO</span>
           </h1>
           <p className="mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-white/90 drop-shadow">
-            Uma plataforma integrada para organizar e acompanhar as rotinas administrativas e operacionais da Distribuidora Irmãos Barreiro. O sistema reúne, em um só ambiente, o cadastro de colaboradores, controle de diaristas e pagamentos, emissão de recibos, relatórios e permissões de trabalho — oferecendo mais segurança, agilidade e clareza para a equipe.
+            Uma plataforma integrada para organizar e acompanhar as rotinas administrativas e operacionais da Distribuidora Irmãos Barreiro. O sistema reúne, em um só ambiente, o cadastro de colaboradores, controle de diaristas e pagamentos, emissão de recibos, relatórios, controle de EPI´s e segurança do trabalho, oferecendo mais segurança, agilidade e clareza para a equipe.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <button

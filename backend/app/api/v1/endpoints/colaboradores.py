@@ -66,7 +66,12 @@ def _descriptografar_colaborador(col):
     return col
 
 @router.post("", response_model=ColaboradorOut, status_code=status.HTTP_201_CREATED)
-def criar_cadastro_colaborador(dados: ColaboradorCreate, request: Request, db: Session = Depends(get_db)):
+def criar_cadastro_colaborador(
+    dados: ColaboradorCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     enforce_rate_limit(request, "cadastro-colaborador", limit=10, window_seconds=3600)
     protocolo = gerar_protocolo()
     agora_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")

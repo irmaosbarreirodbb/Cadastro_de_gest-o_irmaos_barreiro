@@ -33,17 +33,63 @@ import {
 
 export default function PortalColaborador({ user, onLogout }) {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('hub'); // 'hub' | 'formulario' | 'relacao' | 'cadastrar_diarista' | 'recibo'
+  // Preserva o módulo que o usuário estava visualizando na sessão ativa (DEV-04)
+  const [activeModule, setActiveModule] = useState(() => {
+    try {
+      localStorage.removeItem('portal_active_module');
+      return sessionStorage.getItem('portal_active_module') || 'hub';
+    } catch {
+      return 'hub';
+    }
+  });
   const [selectedDiaristaForRecibo, setSelectedDiaristaForRecibo] = useState(null);
 
-  // Lista de diaristas persistida no PostgreSQL
-  const [diaristas, setDiaristas] = useState([]);
+  // Sincroniza o módulo ativo em sessionStorage
+  useEffect(() => {
+    try {
+      if (activeModule) {
+        sessionStorage.setItem('portal_active_module', activeModule);
+      }
+    } catch (e) {}
+  }, [activeModule]);
+
+  // Lista de diaristas com cache temporário em sessionStorage (evita expor PIX e pagamentos em localStorage persistente)
+  const [diaristas, setDiaristas] = useState(() => {
+    try {
+      localStorage.removeItem('diaristas_cache'); // limpa resíduo legado se houver
+      const salvo = sessionStorage.getItem('diaristas_cache');
+      return salvo ? JSON.parse(salvo) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Salva no cache da sessão sempre que diaristas mudar
+  useEffect(() => {
+    try {
+      if (diaristas && diaristas.length > 0) {
+        sessionStorage.setItem('diaristas_cache', JSON.stringify(diaristas));
+      }
+    } catch (e) {}
+  }, [diaristas]);
 
   // Data selecionada ativa para a relação diária
   const [dataSelecionada, setDataSelecionada] = useState(() => {
-    const hoje = new Date().toISOString().split('T')[0];
-    return hoje;
+    try {
+      localStorage.removeItem('data_selecionada_diaristas');
+      return sessionStorage.getItem('data_selecionada_diaristas') || new Date().toISOString().split('T')[0];
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
   });
+
+  useEffect(() => {
+    try {
+      if (dataSelecionada) {
+        sessionStorage.setItem('data_selecionada_diaristas', dataSelecionada);
+      }
+    } catch (e) {}
+  }, [dataSelecionada]);
 
   // Carrega diárias do PostgreSQL apenas quando o módulo de relação estiver ativo
   useEffect(() => {
@@ -70,6 +116,7 @@ export default function PortalColaborador({ user, onLogout }) {
             createdAt: d.created_at
           }));
           setDiaristas(formatados);
+          sessionStorage.setItem('diaristas_cache', JSON.stringify(formatados));
         }
       } catch (err) {
         console.warn("Backend operando offline ou conectando...", err);
@@ -180,7 +227,7 @@ export default function PortalColaborador({ user, onLogout }) {
         aria-hidden="true"
         className="fixed inset-0 pointer-events-none z-0 no-print"
         style={{
-          backgroundImage: 'url(/images/fundo_distribuidora_barreiro.jpg)',
+          backgroundImage: 'url(/images/fundo_distribuidora_barreiro_corrigido3.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center 40%',
           filter: 'brightness(0.65) contrast(1.12) saturate(1.05)',

@@ -13,9 +13,19 @@ __pycache__/
 
 # Variáveis de ambiente com credenciais reais (manter apenas .env.example)
 .env
+.env.*
+!.env.example
 backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/meu-projeto/.env
+frontend/meu-projeto/.env.*
+!frontend/meu-projeto/.env.example
 
 # Caches de IDE e SO
 .DS_Store
 Thumbs.db
+credenciais_irmaos_barreiro.txt
+*credenciais*.txt
+*senha*.txt
 *.log
