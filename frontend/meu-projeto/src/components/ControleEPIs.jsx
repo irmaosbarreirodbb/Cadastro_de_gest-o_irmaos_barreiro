@@ -46,14 +46,15 @@ import {
   getEpiEntregaPdfUrl,
   getColaboradorFichaPdfUrl,
   baixarColaboradorFichaPdfApi,
-  carregarPadraoImagem1Api,
+  limparTodosEpisApi,
   getFuncionariosEpiApi,
   criarFuncionarioEpiApi
 } from '../services/api';
 
-// Categorias das Abas da Planilha (Imagem 1)
+// Categorias das Abas da Planilha (Fardamento & EPIs)
 const CATEGORIAS_EPI = [
   { id: 'TODOS', label: 'Todas as Categorias', icon: Layers },
+  { id: 'FARDAMENTO', label: 'Fardamento & Uniformes', icon: ShieldCheck },
   { id: 'CABECA_AUDITIVO', label: 'Cabeça & Auditivo', icon: HardHat },
   { id: 'OCULAR_RESPIRATORIO', label: 'Ocular & Facial', icon: Eye },
   { id: 'LUVAS', label: 'Luvas & Proteção Manual', icon: Package },
@@ -213,7 +214,7 @@ export default function ControleEPIs({ onBack }) {
       if (cached) {
         try {
           setEpis(JSON.parse(cached));
-        } catch (e) {}
+        } catch (e) { }
       }
     } finally {
       setLoadingEpis(false);
@@ -235,7 +236,7 @@ export default function ControleEPIs({ onBack }) {
       if (cached) {
         try {
           setFuncionarios(JSON.parse(cached));
-        } catch (e) {}
+        } catch (e) { }
       }
     } finally {
       setLoadingFuncionarios(false);
@@ -282,16 +283,31 @@ export default function ControleEPIs({ onBack }) {
     }
   }, [mensagemSucesso, mensagemErro]);
 
-  // CARREGAR TABELA DE EPI
-  const handleCarregarTabelaPadrao = async () => {
-    if (!window.confirm('Deseja carregar no estoque a tabela oficial de EPIs?')) return;
+  // ATUALIZAR TABELA (Apenas recarrega dados do banco sem inserir nada)
+  const handleAtualizarLista = async () => {
     try {
       setLoadingEpis(true);
-      const res = await carregarPadraoImagem1Api();
-      setMensagemSucesso(res.mensagem || 'Tabela de EPIs carregada com sucesso!');
+      sessionStorage.removeItem('epis_estoque_cache');
       await carregarEpis();
+      setMensagemSucesso('Tabela atualizada com o banco de dados!');
+    } catch {
+      setMensagemErro('Erro ao atualizar tabela.');
+    } finally {
+      setLoadingEpis(false);
+    }
+  };
+
+  // LIMPAR TODO O ESTOQUE NO BANCO
+  const handleLimparTudo = async () => {
+    if (!window.confirm('⚠️ ATENÇÃO: Tem certeza que deseja APAGAR TODOS os registros da tabela de EPIs no banco de dados? Esta ação excluirá tudo em definitivo.')) return;
+    try {
+      setLoadingEpis(true);
+      sessionStorage.removeItem('epis_estoque_cache');
+      const res = await limparTodosEpisApi();
+      setEpis([]);
+      setMensagemSucesso(res.mensagem || 'Estoque zerado com sucesso no banco de dados!');
     } catch (err) {
-      setMensagemErro(err.message || 'Erro ao carregar tabela de EPIs.');
+      setMensagemErro(err.message || 'Erro ao zerar tabela de EPIs.');
     } finally {
       setLoadingEpis(false);
     }
@@ -573,8 +589,8 @@ export default function ControleEPIs({ onBack }) {
               setFuncionarioSelecionado(null);
             }}
             className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${activeMainTab === 'estoque'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white hover:bg-slate-200 text-slate-800'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'bg-white hover:bg-slate-200 text-slate-800'
               }`}
           >
             <FileSpreadsheet className={`w-4 h-4 shrink-0 ${activeMainTab === 'estoque' ? 'text-emerald-400' : 'text-slate-600'}`} />
@@ -584,8 +600,8 @@ export default function ControleEPIs({ onBack }) {
           <button
             onClick={() => setActiveMainTab('distribuicao')}
             className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${activeMainTab === 'distribuicao'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'bg-white hover:bg-slate-200 text-slate-800'
+              ? 'bg-red-600 text-white shadow-md'
+              : 'bg-white hover:bg-slate-200 text-slate-800'
               }`}
           >
             <Users className={`w-4 h-4 shrink-0 ${activeMainTab === 'distribuicao' ? 'text-white' : 'text-slate-600'}`} />
@@ -598,8 +614,8 @@ export default function ControleEPIs({ onBack }) {
               setFuncionarioSelecionado(null);
             }}
             className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${activeMainTab === 'planilha'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white hover:bg-slate-200 text-slate-800'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'bg-white hover:bg-slate-200 text-slate-800'
               }`}
           >
             <UploadCloud className={`w-4 h-4 shrink-0 ${activeMainTab === 'planilha' ? 'text-blue-400' : 'text-slate-600'}`} />
@@ -612,8 +628,8 @@ export default function ControleEPIs({ onBack }) {
               setFuncionarioSelecionado(null);
             }}
             className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${activeMainTab === 'xml'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white hover:bg-slate-200 text-slate-800'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'bg-white hover:bg-slate-200 text-slate-800'
               }`}
           >
             <FileCode className={`w-4 h-4 shrink-0 ${activeMainTab === 'xml' ? 'text-amber-400' : 'text-slate-600'}`} />
@@ -673,14 +689,25 @@ export default function ControleEPIs({ onBack }) {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 justify-end">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
               <button
-                onClick={handleCarregarTabelaPadrao}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black shadow-xs transition cursor-pointer"
-                title="Carregar tabela oficial de EPIs no estoque"
+                onClick={handleAtualizarLista}
+                disabled={loadingEpis}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs sm:text-sm font-black shadow-xs transition cursor-pointer border border-slate-300"
+                title="Apenas atualiza a visualização com o banco de dados"
               >
-                <Sparkles className="w-4 h-4 text-amber-300 stroke-[2.5]" />
-                CARREGAR TABELA DE EPI
+                <RefreshCw className={`w-4 h-4 text-slate-700 stroke-[2.5] ${loadingEpis ? 'animate-spin' : ''}`} />
+                ATUALIZAR TELA
+              </button>
+
+              <button
+                onClick={handleLimparTudo}
+                disabled={loadingEpis}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-black shadow-xs transition cursor-pointer"
+                title="Zerar todos os itens de EPIs no banco de dados"
+              >
+                <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                ZERAR BANCO
               </button>
 
               <button
@@ -719,8 +746,8 @@ export default function ControleEPIs({ onBack }) {
                   key={cat.id}
                   onClick={() => setActiveCategoriaTab(cat.id)}
                   className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-t-2xl font-black text-xs border-t-2 transition-all whitespace-nowrap cursor-pointer ${ativa
-                      ? 'bg-white text-slate-950 border-emerald-600 shadow-sm'
-                      : 'bg-slate-200/90 hover:bg-slate-300 text-slate-800 border-transparent'
+                    ? 'bg-white text-slate-950 border-emerald-600 shadow-sm'
+                    : 'bg-slate-200/90 hover:bg-slate-300 text-slate-800 border-transparent'
                     }`}
                 >
                   <Icone className={`w-4 h-4 stroke-[2.5] ${ativa ? 'text-emerald-600' : 'text-slate-600'}`} />

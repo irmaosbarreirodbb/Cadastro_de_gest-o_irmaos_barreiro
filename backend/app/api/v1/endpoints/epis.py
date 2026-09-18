@@ -119,6 +119,22 @@ def deletar_epi(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete("/limpar-todos", status_code=status.HTTP_200_OK)
+def limpar_todos_epis(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Exclui todos os EPIs e entregas atreladas do banco de dados de uma só vez."""
+    total_entregas = db.query(EntregaEPI).delete()
+    total_epis = db.query(EPI).delete()
+    db.commit()
+    return {
+        "mensagem": f"Estoque zerado com sucesso! {total_epis} itens removidos do banco de dados.",
+        "total_epis": total_epis,
+        "total_entregas": total_entregas
+    }
+
+
 # ============================================================================
 # 2. CARGA E MIGRAÇÃO DE PLANILHAS (EXCEL .xlsx / .xls OU .csv)
 # ============================================================================
@@ -204,84 +220,7 @@ async def endpoint_importar_xml(
         raise HTTPException(status_code=400, detail="Não foi possível processar o XML da NF-e. Verifique se o arquivo é válido.")
 
 
-# ============================================================================
-# 3.1 CARGA INICIAL DA TABELA DA IMAGEM 1 (CONTROLE DE ESTOQUE MÍNIMO)
-# ============================================================================
 
-ITENS_PADRAO_IMAGEM1 = [
-    {"descricao": "ABAFADOR TIPO CONCHA FLUX", "data_fabricacao": "N/A", "validade_epi": "5 anos", "numero_ca": "29706", "validade_ca": "28/10/2025", "estoque_minimo": 1.0, "estoque_real": 0.0, "categoria": "CABECA_AUDITIVO"},
-    {"descricao": "CAPACETE DE SEGURANÇA C/JUGULAR", "data_fabricacao": "mar/22", "validade_epi": "N/A", "numero_ca": "12354", "validade_ca": "17/12/2026", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "CABECA_AUDITIVO"},
-    {"descricao": "CAPACETE DE SEGURANÇA C/ABAFADOR E JUGULAR", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "29638", "validade_ca": "15/10/2023", "estoque_minimo": 1.0, "estoque_real": 0.0, "categoria": "CABECA_AUDITIVO"},
-    {"descricao": "OCULOS DE SEGURANÇA INCOLOR", "data_fabricacao": "out/2018", "validade_epi": "5 anos", "numero_ca": "9722", "validade_ca": "14/08/2027", "estoque_minimo": 10.0, "estoque_real": 0.0, "categoria": "OCULAR_RESPIRATORIO"},
-    {"descricao": "OCULOS DE SEGURANÇA ESCURO", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "9722", "validade_ca": "14/08/2027", "estoque_minimo": 10.0, "estoque_real": 0.0, "categoria": "OCULAR_RESPIRATORIO"},
-    {"descricao": "PROTETOR AUDITIVO TIPO PLUG", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "9584", "validade_ca": "19/07/2023", "estoque_minimo": 10.0, "estoque_real": 0.0, "categoria": "CABECA_AUDITIVO"},
-    {"descricao": "RESPIRADOR SEMI FACIAL CG 306", "data_fabricacao": "N/A", "validade_epi": "5 anos", "numero_ca": "7072", "validade_ca": "31/12/2023", "estoque_minimo": 2.0, "estoque_real": 0.0, "categoria": "OCULAR_RESPIRATORIO"},
-    {"descricao": "CARTUCHO RC 203 VAPORES ORGANICOS E GASES ACIDOS", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "7072", "validade_ca": "31/12/2023", "estoque_minimo": 2.0, "estoque_real": 0.0, "categoria": "OCULAR_RESPIRATORIO"},
-    {"descricao": "LUVA DE PROTEÇÃO TRIC PRETA", "data_fabricacao": "jan/22", "validade_epi": "5 anos", "numero_ca": "30916", "validade_ca": "21/01/2026", "estoque_minimo": 10.0, "estoque_real": 0.0, "categoria": "LUVAS"},
-    {"descricao": "LUVA DE VAQUETA CANO CURTO", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "20004", "validade_ca": "14/05/2023", "estoque_minimo": 8.0, "estoque_real": 0.0, "categoria": "LUVAS"},
-    {"descricao": "LUVA DE PROTEÇÃO EM PVC CANO LONGO", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "37127", "validade_ca": "05/08/2025", "estoque_minimo": 1.0, "estoque_real": 0.0, "categoria": "LUVAS"},
-    {"descricao": "AVENTAL DE PVC FORRADO BRANCO", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "28303", "validade_ca": "15/10/2025", "estoque_minimo": 1.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº36", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 2.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº37", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 1.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº38", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 4.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº39", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº40", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº41", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 2.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº42", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 2.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº43", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "BOTA DE SEGURANÇA Nº44", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "32807", "validade_ca": "14/11/2022", "estoque_minimo": 3.0, "estoque_real": 0.0, "categoria": "CALCADOS"},
-    {"descricao": "CINTA ERGONOMICA TAM-P", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "N/A", "validade_ca": "N/A", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-    {"descricao": "CINTA ERGONOMICA TAM-M", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "N/A", "validade_ca": "N/A", "estoque_minimo": 4.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-    {"descricao": "CINTA ERGONOMICA TAM-G", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "N/A", "validade_ca": "N/A", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-    {"descricao": "CINTA ERGONOMICA TAM-XG", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "N/A", "validade_ca": "N/A", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-    {"descricao": "CINTA ERGONOMICA TAM-XXG", "data_fabricacao": "N/A", "validade_epi": "N/A", "numero_ca": "N/A", "validade_ca": "N/A", "estoque_minimo": 5.0, "estoque_real": 0.0, "categoria": "ERGONOMIA_VESTIMENTAS"},
-]
-
-
-@router.post("/carregar-padrao-imagem1")
-def carregar_padrao_imagem1(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Popula ou atualiza no banco de dados exatamente os 26 itens constantes
-    na planilha física 'Controle de Estoque Mínimo de EPI' (Imagem 1).
-    """
-    inseridos = 0
-    atualizados = 0
-
-    for item in ITENS_PADRAO_IMAGEM1:
-        existente = db.query(EPI).filter(EPI.descricao == item["descricao"]).first()
-        if existente:
-            existente.data_fabricacao = item["data_fabricacao"]
-            existente.validade_epi = item["validade_epi"]
-            existente.numero_ca = item["numero_ca"]
-            existente.validade_ca = item["validade_ca"]
-            existente.estoque_minimo = item["estoque_minimo"]
-            existente.categoria = item["categoria"]
-            atualizados += 1
-        else:
-            novo = EPI(
-                descricao=item["descricao"],
-                data_fabricacao=item["data_fabricacao"],
-                validade_epi=item["validade_epi"],
-                numero_ca=item["numero_ca"],
-                validade_ca=item["validade_ca"],
-                estoque_minimo=item["estoque_minimo"],
-                estoque_real=item["estoque_real"],
-                categoria=item["categoria"],
-                unidade="UN"
-            )
-            db.add(novo)
-            inseridos += 1
-
-    db.commit()
-    return {
-        "mensagem": f"Tabela oficial da Imagem 1 carregada com sucesso: {inseridos} novos itens inseridos e {atualizados} atualizados.",
-        "inseridos": inseridos,
-        "atualizados": atualizados,
-        "total": len(ITENS_PADRAO_IMAGEM1)
-    }
 
 
 # ============================================================================

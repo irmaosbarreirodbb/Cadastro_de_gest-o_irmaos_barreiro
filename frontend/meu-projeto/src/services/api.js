@@ -601,12 +601,17 @@ export async function baixarEpiEntregaPdfApi(id) {
   return await res.blob();
 }
 
-export async function carregarPadraoImagem1Api() {
-  const res = await fetch(`${API_BASE_URL}/epis/carregar-padrao-imagem1`, {
-    method: 'POST',
+
+
+export async function limparTodosEpisApi() {
+  const res = await fetch(`${API_BASE_URL}/epis/limpar-todos`, {
+    method: 'DELETE',
     headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error('Erro ao carregar tabela padrão da Imagem 1');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Erro ao limpar todos os EPIs');
+  }
   return await res.json();
 }
 
