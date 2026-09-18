@@ -280,7 +280,7 @@ def importar_planilha_para_banco(file_bytes: bytes, filename: str, db: Session) 
             # 1. Tenta buscar por CA se fornecido
             epi_existente = None
             if numero_ca:
-                epi_existente = db.query(EPI).filter(EPI.numero_ca == numero_ca).first()
+                epi_existente = db.query(EPI).filter(EPI.descricao.ilike(descricao.strip())).first()
             
             # 2. Se não encontrou por CA, busca por Descrição exata / case-insensitive
             if not epi_existente:
