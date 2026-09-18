@@ -1,5 +1,6 @@
 import io
 import re
+import unicodedata
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 import pandas as pd
@@ -12,7 +13,8 @@ def _normalizar_coluna(nome: str) -> str:
     """Normaliza nome de coluna para comparação insensível a acentos e caracteres especiais."""
     if not nome:
         return ""
-    s = str(nome).strip().lower()
+    s = unicodedata.normalize("NFKD", str(nome).strip().lower())
+    s = "".join(char for char in s if not unicodedata.combining(char))
     s = re.sub(r'[áàãâä]', 'a', s)
     s = re.sub(r'[éèêë]', 'e', s)
     s = re.sub(r'[íìîï]', 'i', s)
@@ -70,12 +72,12 @@ def _mapear_colunas(colunas_originais: List[str]) -> Dict[str, str]:
         "funcao": ["funcao", "cargo", "ocupacao"],
         "setor": ["setor", "departamento", "area"],
         "local": ["local", "unidade_local", "filial", "cidade"],
-        "registro": ["matricula", "registro", "cpf", "re"],
+        "registro": ["matricula", "registro", "cpf"],
         "data_entrega": ["data_entrega", "dt_entrega", "data_distribuicao", "dt_distribuicao", "entrega"],
         "motivo": ["motivo", "tipo_entrega", "motivo_entrega"],
         "tamanho": ["tamanho", "tam", "numeracao"],
         "quantidade_entregue": ["qtd_entregue", "quantidade_entregue", "entregue"],
-        "descricao": ["descricao_do_epi", "descricao", "desc", "produto", "equipamento", "item_descricao", "especificacao", "item", "epi"],
+        "descricao": ["descricao_do_epi", "descricao", "desc", "produto", "equipamento", "item_descricao", "especificacao", "epi"],
         "fabricante": ["fabricante", "marca", "fornecedor"],
         "data_fabricacao": ["data_fabricacao", "dt_fabricacao", "fabricacao", "data_de_fabricacao", "dt_fab"],
         "validade_epi": ["validade_epi", "validade_produto", "val_epi", "validade"],
@@ -110,6 +112,46 @@ def _mapear_colunas(colunas_originais: List[str]) -> Dict[str, str]:
     return mapa
 
 
+def _linha_cabecalho(df_bruto: pd.DataFrame) -> Optional[int]:
+    """Localiza o cabeçalho em planilhas que possuem título antes da tabela."""
+    for indice, row in df_bruto.head(30).iterrows():
+        colunas = {
+            _normalizar_coluna(valor)
+            for valor in row.tolist()
+            if _limpar_valor_texto(valor)
+        }
+        tem_descricao = any(
+            "descricao" in coluna or coluna in {"produto", "equipamento", "epi"}
+            for coluna in colunas
+        )
+        tem_estoque = any(
+            "estoque" in coluna or coluna in {"saldo", "qtd", "quantidade"}
+            for coluna in colunas
+        )
+        if tem_descricao and tem_estoque:
+            return indice
+    return None
+
+
+def _preparar_dataframe(df_bruto: pd.DataFrame) -> pd.DataFrame:
+    """Usa o cabeçalho detectado e remove títulos e linhas vazias acima da tabela."""
+    indice_cabecalho = _linha_cabecalho(df_bruto)
+    if indice_cabecalho is None:
+        return df_bruto
+
+    colunas: List[str] = []
+    usados: Dict[str, int] = {}
+    for indice, valor in enumerate(df_bruto.iloc[indice_cabecalho].tolist(), start=1):
+        nome = _limpar_valor_texto(valor) or f"coluna_{indice}"
+        contador = usados.get(nome, 0)
+        usados[nome] = contador + 1
+        colunas.append(nome if contador == 0 else f"{nome}_{contador + 1}")
+
+    df = df_bruto.iloc[indice_cabecalho + 1:].copy()
+    df.columns = colunas
+    return df.dropna(how="all").reset_index(drop=True)
+
+
 def carregar_dataframe(file_bytes: bytes, filename: str) -> pd.DataFrame:
     """Lê bytes de arquivo Excel ou CSV em um DataFrame do Pandas."""
     nome_lower = filename.lower()
@@ -118,18 +160,18 @@ def carregar_dataframe(file_bytes: bytes, filename: str) -> pd.DataFrame:
     if nome_lower.endswith(".csv"):
         # Tenta detectar separador (; ou ,)
         try:
-            df = pd.read_csv(bio, sep=";", encoding="utf-8-sig")
+            df = pd.read_csv(bio, sep=";", encoding="utf-8-sig", header=None)
             if len(df.columns) <= 1:
                 bio.seek(0)
-                df = pd.read_csv(bio, sep=",", encoding="utf-8-sig")
+                df = pd.read_csv(bio, sep=",", encoding="utf-8-sig", header=None)
         except Exception:
             bio.seek(0)
-            df = pd.read_csv(bio, sep=",", encoding="latin-1")
+            df = pd.read_csv(bio, sep=",", encoding="latin-1", header=None)
     else:
         # Excel (.xlsx, .xls)
-        df = pd.read_excel(bio)
+        df = pd.read_excel(bio, header=None)
     
-    return df
+    return _preparar_dataframe(df)
 
 
 def preview_planilha(file_bytes: bytes, filename: str, max_linhas: int = 10) -> Dict[str, Any]:
