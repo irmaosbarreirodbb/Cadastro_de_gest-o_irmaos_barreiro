@@ -168,8 +168,19 @@ def carregar_dataframe(file_bytes: bytes, filename: str) -> pd.DataFrame:
             bio.seek(0)
             df = pd.read_csv(bio, sep=",", encoding="latin-1", header=None)
     else:
-        # Excel (.xlsx, .xls)
-        df = pd.read_excel(bio, header=None)
+        # Excel (.xlsx, .xls): lê todas as abas que contenham uma tabela de estoque.
+        abas = pd.read_excel(bio, sheet_name=None, header=None)
+        dataframes = []
+        for df_aba in abas.values():
+            if _linha_cabecalho(df_aba) is not None:
+                dataframes.append(_preparar_dataframe(df_aba))
+
+        # Mantém compatibilidade com arquivos simples, sem cabeçalho reconhecido.
+        if not dataframes:
+            primeira_aba = next(iter(abas.values()))
+            return _preparar_dataframe(primeira_aba)
+
+        return pd.concat(dataframes, ignore_index=True, sort=False)
     
     return _preparar_dataframe(df)
 
