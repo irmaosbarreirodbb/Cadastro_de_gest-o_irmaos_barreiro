@@ -375,7 +375,7 @@ export default function ReciboIndividual({ diaristaInicial, diaristas = [], onUp
       valor: lancamentosPeriodo
         .filter(d => d.data === data && (
           tipoRecibo === 'diaria'
-            ? d.id === diaristaId
+            ? (diaristaId ? (d.id === diaristaId || normalizarNome(d.nome) === pessoa) : normalizarNome(d.nome) === pessoa)
             : normalizarNome(d.nome) === pessoa
         ))
         .reduce((total, d) => total + valorDoLancamento(d), 0),
@@ -383,11 +383,15 @@ export default function ReciboIndividual({ diaristaInicial, diaristas = [], onUp
   }, [tipoRecibo, form.dataRef, form.nome, diaristaId, lancamentosPeriodo]);
   const totalGeral = diasComValor.reduce((acc, d) => acc + d.valor, 0);
 
-  // Se nenhum dia tem valor do banco, usa o valor unitário do form para os dias do período
+  // Se nenhum dia tem valor do banco, usa o valor unitário informado no formulário
   const diasParaExibir = (() => {
     const temValorBanco = diasComValor.some(d => d.valor > 0);
     if (temValorBanco) return diasComValor;
-    return diasComValor;
+    const fallbackUnitario = parseFloat(form.valorUnitario) || 0;
+    return diasComValor.map(d => ({
+      ...d,
+      valor: fallbackUnitario,
+    }));
   })();
   const totalExibido = diasParaExibir.reduce((acc, d) => acc + d.valor, 0);
 

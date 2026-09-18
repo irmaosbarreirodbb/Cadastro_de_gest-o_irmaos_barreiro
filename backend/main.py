@@ -170,6 +170,8 @@ development_origins = [
 # valores adicionais podem ser informados em ALLOWED_ORIGINS.
 production_origins = [
     "https://distribuidorairmaosbarreiros.up.railway.app",
+    "https://distribuidorairmaosbarreirobebidas.up.railway.app",
+    "https://distribuidorbarreirosbebidasltda.up.railway.app",
 ]
 ALLOWED_ORIGINS = list(set((
     development_origins if settings.ENVIRONMENT == "development" else production_origins
@@ -178,6 +180,7 @@ ALLOWED_ORIGINS = list(set((
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

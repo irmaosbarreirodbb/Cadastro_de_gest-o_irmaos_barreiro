@@ -42,16 +42,28 @@ export default function PortalColaborador({ user, onLogout }) {
       return 'hub';
     }
   });
-  const [selectedDiaristaForRecibo, setSelectedDiaristaForRecibo] = useState(null);
+  const [selectedDiaristaForRecibo, setSelectedDiaristaForRecibo] = useState(() => {
+    try {
+      const salvo = sessionStorage.getItem('selected_diarista_recibo');
+      return salvo ? JSON.parse(salvo) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  // Sincroniza o módulo ativo em sessionStorage
+  // Sincroniza o módulo ativo e diarista selecionado em sessionStorage
   useEffect(() => {
     try {
       if (activeModule) {
         sessionStorage.setItem('portal_active_module', activeModule);
       }
+      if (selectedDiaristaForRecibo) {
+        sessionStorage.setItem('selected_diarista_recibo', JSON.stringify(selectedDiaristaForRecibo));
+      } else {
+        sessionStorage.removeItem('selected_diarista_recibo');
+      }
     } catch (e) {}
-  }, [activeModule]);
+  }, [activeModule, selectedDiaristaForRecibo]);
 
   // Lista de diaristas com cache temporário em sessionStorage (evita expor PIX e pagamentos em localStorage persistente)
   const [diaristas, setDiaristas] = useState(() => {

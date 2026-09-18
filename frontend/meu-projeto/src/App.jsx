@@ -6,7 +6,7 @@ import Historia from './components/Historia';
 import Footer from './components/Footer';
 import PoliticaPrivacidade from './components/PoliticaPrivacidade';
 
-import { getCurrentUserApi, logoutApi, clearAllAppStorage } from './services/api';
+import { getCurrentUserApi, logoutApi, clearAllAppStorage, getAuthToken } from './services/api';
 
 function Home({ isLoggedIn, user, onLogin, onLogout }) {
   // Estado do modal de login elevado para cá, para que o Hero da home
@@ -51,8 +51,9 @@ function App() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
+      const token = sessionStorage.getItem('barreiro_token');
       const saved = sessionStorage.getItem('user_barreiro');
-      return !!saved;
+      return !!(token || saved);
     } catch {
       return false;
     }
@@ -61,7 +62,7 @@ function App() {
   useEffect(() => {
     let active = true;
 
-    // Higienização inicial de qualquer chave antiga que possa ter persistido no localStorage (DEV-04)
+    // Higienização de resíduos antigos em localStorage
     try {
       [
         'barreiro_token',
@@ -77,6 +78,15 @@ function App() {
     } catch {}
 
     async function restoreValidatedSession() {
+      const token = getAuthToken();
+      if (!token) {
+        if (active) {
+          setIsLoggedIn(false);
+          setUser(null);
+        }
+        return;
+      }
+
       try {
         const currentUser = await getCurrentUserApi();
         if (active && currentUser) {
@@ -85,10 +95,14 @@ function App() {
           sessionStorage.setItem('user_barreiro', JSON.stringify(currentUser));
         }
       } catch (err) {
-        if (active) {
+        const msg = String(err?.message || '').toLowerCase();
+        const isAuthError = msg.includes('401') || msg.includes('sessao invalida') || msg.includes('não autorizado');
+        if (isAuthError && active) {
           setIsLoggedIn(false);
           setUser(null);
           clearAllAppStorage();
+        } else {
+          console.warn('Backend temporariamente indisponível, preservando sessão na aba.');
         }
       }
     }

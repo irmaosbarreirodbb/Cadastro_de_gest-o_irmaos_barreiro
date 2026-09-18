@@ -24,8 +24,9 @@ function getApiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 
-// A sessão é mantida em cookie HttpOnly e/ou token volátil em memória RAM.
-// Nenhum token JWT é armazenado em sessionStorage ou localStorage (DEV-03).
+// A sessão persiste no sessionStorage da aba do navegador e em memória.
+// Ao fechar a aba ou clicar em Sair, a sessão é completamente eliminada.
+const TOKEN_STORAGE_KEY = 'barreiro_token';
 let _inMemoryAuthToken = '';
 
 async function fetch(url, options = {}) {
@@ -36,25 +37,37 @@ async function fetch(url, options = {}) {
   return window.fetch(url, { ...options, headers, credentials: 'include' });
 }
 
-// Retorna o token volátil mantido somente na memória da aba ativa
+// Retorna o token da sessão (memória ou sessionStorage)
 export function getAuthToken() {
-  return _inMemoryAuthToken;
+  if (_inMemoryAuthToken) return _inMemoryAuthToken;
+  try {
+    const saved = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    if (saved) {
+      _inMemoryAuthToken = saved;
+      return saved;
+    }
+  } catch {}
+  return '';
 }
 
 export function setAuthToken(token) {
   _inMemoryAuthToken = token || '';
   try {
-    // Purga imediata de qualquer resíduo histórico nos storages do navegador
-    sessionStorage.removeItem('barreiro_token');
-    localStorage.removeItem('barreiro_token');
+    if (token) {
+      sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+    // Higienização de resíduos em localStorage
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch {}
 }
 
 export function removeAuthToken() {
   _inMemoryAuthToken = '';
   try {
-    sessionStorage.removeItem('barreiro_token');
-    localStorage.removeItem('barreiro_token');
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch {}
 }
 
@@ -70,6 +83,7 @@ export function clearAllAppStorage() {
     'epis_funcionarios_cache',
     'registros_funcionarios_cache',
     'lista_pts_cache',
+    'selected_diarista_recibo',
   ];
   try {
     keys.forEach((k) => {
