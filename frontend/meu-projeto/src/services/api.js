@@ -495,7 +495,7 @@ export async function updateEpiApi(id, data) {
 }
 
 export async function deleteEpiApi(id) {
-  const res = await fetch(`${API_BASE_URL}/epis/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/epis/item/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
@@ -610,7 +610,10 @@ export async function limparTodosEpisApi() {
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'Erro ao limpar todos os EPIs');
+    const detail = Array.isArray(errorData.detail)
+      ? errorData.detail.map((erro) => erro.msg || String(erro)).join('; ')
+      : errorData.detail;
+    throw new Error(detail || 'Erro ao limpar todos os EPIs');
   }
   return await res.json();
 }

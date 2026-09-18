@@ -103,7 +103,7 @@ def atualizar_epi(
     return epi
 
 
-@router.delete("/{epi_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/item/{epi_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_epi(
     epi_id: int,
     db: Session = Depends(get_db),
