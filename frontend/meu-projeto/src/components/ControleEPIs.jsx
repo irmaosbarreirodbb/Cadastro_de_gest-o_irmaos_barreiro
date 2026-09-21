@@ -48,7 +48,9 @@ import {
   baixarColaboradorFichaPdfApi,
   limparTodosEpisApi,
   getFuncionariosEpiApi,
-  criarFuncionarioEpiApi
+  criarFuncionarioEpiApi,
+  deletarFuncionarioEpiApi,
+  limparFuncionariosEpiApi
 } from '../services/api';
 
 // Categorias das Abas da Planilha (Fardamento & EPIs)
@@ -451,6 +453,47 @@ export default function ControleEPIs({ onBack }) {
     }
   };
 
+
+  // EXCLUIR UM FUNCIONÁRIO E SUAS ENTREGAS DE EPI
+  const handleExcluirFuncionario = async (func) => {
+    if (!window.confirm(`Excluir o funcionário "${func.nome}" e todos os lançamentos de EPI dele? Esta ação também estorna os itens para o estoque.`)) return;
+    try {
+      await deletarFuncionarioEpiApi(func.id);
+      if (funcionarioSelecionado?.id === func.id) {
+        setFuncionarioSelecionado(null);
+        setEntregasDoFuncionario([]);
+      }
+      sessionStorage.removeItem('epis_funcionarios_cache');
+      setMensagemSucesso(`Funcionário "${func.nome}" excluído com sucesso.`);
+      await carregarFuncionarios();
+      await carregarEpis();
+    } catch (err) {
+      setMensagemErro(err.message || 'Erro ao excluir funcionário.');
+    }
+  };
+
+  // ZERAR O BANCO EXCLUSIVO DE FUNCIONÁRIOS DO MÓDULO DE EPIs
+  const handleLimparFuncionarios = async () => {
+    if (!funcionarios.length) {
+      setMensagemErro('Não há funcionários cadastrados para excluir.');
+      return;
+    }
+    if (!window.confirm('ATENÇÃO: excluir todos os funcionários e todas as entregas de EPI vinculadas? Os lançamentos serão removidos e os itens estornados para o estoque. Esta ação é definitiva.')) return;
+    try {
+      setLoadingFuncionarios(true);
+      const res = await limparFuncionariosEpiApi();
+      setFuncionarios([]);
+      setFuncionarioSelecionado(null);
+      setEntregasDoFuncionario([]);
+      sessionStorage.removeItem('epis_funcionarios_cache');
+      setMensagemSucesso(res.mensagem || 'Banco de funcionários zerado com sucesso.');
+      await carregarEpis();
+    } catch (err) {
+      setMensagemErro(err.message || 'Erro ao zerar banco de funcionários.');
+    } finally {
+      setLoadingFuncionarios(false);
+    }
+  };
 
   // IMPORTAR PLANILHA
   const handleSelecionarPlanilha = async (file) => {
@@ -957,6 +1000,14 @@ export default function ControleEPIs({ onBack }) {
                 <UserPlus className="w-4 h-4 stroke-[2.5]" />
                 + Cadastrar Funcionário
               </button>
+              <button
+                onClick={handleLimparFuncionarios}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-red-50 text-red-700 border border-red-300 font-black text-xs sm:text-sm shadow-sm transition cursor-pointer whitespace-nowrap"
+                title="Excluir todos os funcionários e entregas de EPI"
+              >
+                <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                Zerar banco
+              </button>
               <div className="relative w-full sm:w-80">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 stroke-[2.5]" />
                 <input
@@ -1066,6 +1117,14 @@ export default function ControleEPIs({ onBack }) {
                         >
                           <Edit3 className="w-3.5 h-3.5 stroke-[2.5]" />
                           Abrir Planilha de EPIs
+                        </button>
+                        <button
+                          onClick={() => handleExcluirFuncionario(func)}
+                          className="inline-flex items-center justify-center p-2 ml-1 rounded-xl bg-red-50 hover:bg-red-600 text-red-700 hover:text-white border border-red-200 transition cursor-pointer"
+                          title={`Excluir ${func.nome}`}
+                          aria-label={`Excluir ${func.nome}`}
+                        >
+                          <Trash2 className="w-4 h-4 stroke-[2.5]" />
                         </button>
                       </td>
                     </tr>
