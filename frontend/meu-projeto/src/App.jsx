@@ -5,6 +5,7 @@ import PortalColaborador from './components/PortalColaborador';
 import Historia from './components/Historia';
 import Footer from './components/Footer';
 import PoliticaPrivacidade from './components/PoliticaPrivacidade';
+import CookieConsent from './components/CookieConsent';
 
 import { getCurrentUserApi, logoutApi, clearAllAppStorage, getAuthToken } from './services/api';
 
@@ -136,6 +137,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <CookieConsent />
       <Routes>
         <Route
           path="/"
