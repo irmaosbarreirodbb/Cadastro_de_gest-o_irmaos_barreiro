@@ -60,6 +60,147 @@
   animation: pulseSlow 3s infinite ease-in-out;
 }
 
+/* Aviso de cookies institucional */
+.cookie-consent {
+  position: fixed;
+  z-index: 50;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  width: min(760px, calc(100vw - 2.5rem));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  color: #f7f7f5;
+  background: linear-gradient(135deg, rgba(24, 25, 27, 0.98), rgba(13, 14, 16, 0.98));
+  border: 1px solid rgba(227, 20, 26, 0.38);
+  border-left: 3px solid #e3141a;
+  border-radius: 1rem;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+}
+
+.cookie-consent__icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex-shrink: 0;
+  color: #fff;
+  background: #e3141a;
+  border-radius: 0.85rem;
+  box-shadow: 0 8px 20px rgba(227, 20, 26, 0.25);
+}
+
+.cookie-consent__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+  color: #ff6569;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.cookie-consent__content h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cookie-consent__content p {
+  max-width: 510px;
+  margin: 0.25rem 0 0;
+  color: #b9bcc2;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.cookie-consent__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.cookie-consent__link:hover { color: #ff6569; }
+
+.cookie-consent__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.cookie-consent__actions button {
+  min-height: 2.45rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.cookie-consent__actions button:hover { transform: translateY(-1px); }
+
+.cookie-consent__secondary {
+  color: #d4d5d8;
+  background: transparent;
+  border: 1px solid #3c3e43;
+}
+
+.cookie-consent__secondary:hover { border-color: #72757b; background: #24262a; }
+
+.cookie-consent__primary {
+  color: #fff;
+  background: #e3141a;
+  border: 1px solid #e3141a;
+  box-shadow: 0 5px 16px rgba(227, 20, 26, 0.22);
+}
+
+.cookie-consent__primary:hover { background: #c91016; }
+
+.cookie-consent__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.55rem;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  color: #858991;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cookie-consent__close:hover { color: #fff; background: #2b2d31; }
+
+@media (max-width: 640px) {
+  .cookie-consent {
+    left: 0.75rem;
+    bottom: 0.75rem;
+    width: calc(100vw - 1.5rem);
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.8rem;
+    padding: 1rem;
+  }
+
+  .cookie-consent__icon { width: 2.75rem; height: 2.75rem; }
+  .cookie-consent__actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .cookie-consent__content p { font-size: 0.72rem; }
+}
+
 /* Otimizações e Estilos Específicos para Impressão / Exportação em PDF */
 @media print {
   *,
