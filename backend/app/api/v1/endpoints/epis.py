@@ -506,6 +506,27 @@ def atualizar_funcionario_epi(
     )
 
 
+@router.delete("/funcionarios/limpar-todos")
+def limpar_todos_funcionarios_epi(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Exclui o catálogo de funcionários e suas entregas, estornando o estoque."""
+    entregas = db.query(EntregaEPI).all()
+    for entrega in entregas:
+        if entrega.epi:
+            entrega.epi.estoque_real = (entrega.epi.estoque_real or 0.0) + (entrega.quantidade or 0.0)
+        db.delete(entrega)
+
+    total_funcionarios = db.query(FuncionarioEPI).delete(synchronize_session=False)
+    db.commit()
+    return {
+        "mensagem": f"Banco de funcionários zerado com sucesso. {total_funcionarios} funcionário(s) excluído(s).",
+        "funcionarios_excluidos": total_funcionarios,
+        "entregas_excluidas": len(entregas),
+    }
+
+
 @router.delete("/funcionarios/{funcionario_id}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_funcionario_epi(
     funcionario_id: str,
@@ -518,6 +539,15 @@ def deletar_funcionario_epi(
     func_epi = db.query(FuncionarioEPI).filter(FuncionarioEPI.id == funcionario_id).first()
     if not func_epi:
         raise HTTPException(status_code=404, detail="Funcionário de EPI não encontrado.")
+
+    # Remove também o histórico e estorna os itens ao estoque.
+    entregas = db.query(EntregaEPI).filter(
+        func.upper(EntregaEPI.colaborador_nome) == func_epi.nome.upper()
+    ).all()
+    for entrega in entregas:
+        if entrega.epi:
+            entrega.epi.estoque_real = (entrega.epi.estoque_real or 0.0) + (entrega.quantidade or 0.0)
+        db.delete(entrega)
 
     db.delete(func_epi)
     db.commit()

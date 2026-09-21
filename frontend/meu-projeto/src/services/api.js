@@ -686,3 +686,15 @@ export async function deletarFuncionarioEpiApi(id) {
   return true;
 }
 
+export async function limparFuncionariosEpiApi() {
+  const res = await fetch(`${API_BASE_URL}/epis/funcionarios/limpar-todos`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao zerar banco de funcionários de EPI');
+  }
+  return await res.json();
+}
+
