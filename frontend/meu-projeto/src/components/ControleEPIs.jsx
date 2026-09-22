@@ -64,6 +64,25 @@ const CATEGORIAS_EPI = [
   { id: 'ERGONOMIA_VESTIMENTAS', label: 'Ergonomia & Vestimentas', icon: ShieldCheck },
 ];
 
+const TIPOS_ITEM = [
+  { id: 'TODOS', label: 'Todos os itens' },
+  { id: 'EPI', label: 'Somente EPI' },
+  { id: 'FARDAMENTO', label: 'Somente fardamento' },
+];
+
+// A categoria gravada tem prioridade; a descrição cobre itens antigos/importados
+// que ainda não possuem uma categoria confiável.
+const classificarTipoItem = (item) => {
+  const categoria = String(item?.categoria || '').toUpperCase();
+  if (categoria === 'FARDAMENTO') return 'FARDAMENTO';
+
+  const descricao = String(item?.descricao || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return /fardamento|uniforme|camisa|camiseta|calca|bermuda|jaqueta|blusa|colete\s+uniforme|vestimenta/.test(descricao)
+    ? 'FARDAMENTO'
+    : 'EPI';
+};
+
 // Tabela de Consulta do Código de EPIs (Imagem 2)
 const CODIGOS_CONSULTA_EPI = [
   { cod: '1', desc: 'Capacete de Segurança' },
@@ -104,6 +123,7 @@ export default function ControleEPIs({ onBack }) {
 
   // Sub-aba da Planilha de Estoque (Filtro de Categoria)
   const [activeCategoriaTab, setActiveCategoriaTab] = useState('TODOS');
+  const [activeTipoItem, setActiveTipoItem] = useState('TODOS');
 
   // Estados de Estoque com cache na sessão (sessionStorage evita persistência em disco DEV-04)
   const [epis, setEpis] = useState(() => {
@@ -548,8 +568,10 @@ export default function ControleEPIs({ onBack }) {
 
   // Filtro de EPIs por Categoria na Aba de Estoque
   const episFiltrados = useMemo(() => {
-    if (activeCategoriaTab === 'TODOS') return epis;
     return epis.filter(e => {
+      if (activeTipoItem !== 'TODOS' && classificarTipoItem(e) !== activeTipoItem) return false;
+      if (activeCategoriaTab === 'TODOS') return true;
+      if (activeCategoriaTab === 'FARDAMENTO') return classificarTipoItem(e) === 'FARDAMENTO';
       if (activeCategoriaTab === 'CABECA_AUDITIVO') {
         return e.categoria === 'CABECA_AUDITIVO' || /capacete|abafador|plug|auditivo/i.test(e.descricao);
       }
@@ -567,7 +589,7 @@ export default function ControleEPIs({ onBack }) {
       }
       return true;
     });
-  }, [epis, activeCategoriaTab]);
+  }, [epis, activeCategoriaTab, activeTipoItem]);
 
   // Filtro de Funcionários
   const funcionariosFiltrados = useMemo(() => {
@@ -766,7 +788,9 @@ export default function ControleEPIs({ onBack }) {
                     estoque_real: 0,
                     estoque_minimo: 5,
                     unidade: 'UN',
-                    categoria: activeCategoriaTab !== 'TODOS' ? activeCategoriaTab : 'CABECA_AUDITIVO',
+                    categoria: activeCategoriaTab !== 'TODOS'
+                      ? activeCategoriaTab
+                      : activeTipoItem === 'FARDAMENTO' ? 'FARDAMENTO' : 'CABECA_AUDITIVO',
                     observacao: ''
                   });
                   setModalEpiAberto(true);
@@ -779,6 +803,26 @@ export default function ControleEPIs({ onBack }) {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-2 border-2 border-slate-200">
+            <span className="px-2 text-xs font-black uppercase tracking-wide text-slate-600">Visualizar:</span>
+            {TIPOS_ITEM.map((tipo) => (
+              <button
+                key={tipo.id}
+                onClick={() => {
+                  setActiveTipoItem(tipo.id);
+                  if (tipo.id === 'FARDAMENTO') setActiveCategoriaTab('FARDAMENTO');
+                  if (tipo.id !== 'FARDAMENTO') setActiveCategoriaTab('TODOS');
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer ${activeTipoItem === tipo.id
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-300'}`}
+              >
+                {tipo.label}
+              </button>
+            ))}
+            <span className="ml-auto text-[11px] font-bold text-slate-500">Classificação automática pela categoria ou descrição</span>
+          </div>
+
           {/* ABAS COLORIDAS PARA CADA TIPO DE EPI */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
             {CATEGORIAS_EPI.map((cat) => {
@@ -787,7 +831,12 @@ export default function ControleEPIs({ onBack }) {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setActiveCategoriaTab(cat.id)}
+                  onClick={() => {
+                    setActiveCategoriaTab(cat.id);
+                    if (cat.id === 'TODOS') setActiveTipoItem('TODOS');
+                    else if (cat.id === 'FARDAMENTO') setActiveTipoItem('FARDAMENTO');
+                    else if (cat.id !== 'TODOS') setActiveTipoItem('EPI');
+                  }}
                   className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-t-2xl font-black text-xs border-t-2 transition-all whitespace-nowrap cursor-pointer ${ativa
                     ? 'bg-white text-slate-950 border-emerald-600 shadow-sm'
                     : 'bg-slate-200/90 hover:bg-slate-300 text-slate-800 border-transparent'
@@ -1780,6 +1829,7 @@ export default function ControleEPIs({ onBack }) {
                     onChange={(e) => setFormDataEpi({ ...formDataEpi, categoria: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 font-medium"
                   >
+                    <option value="FARDAMENTO">Fardamento &amp; Uniformes</option>
                     <option value="CABECA_AUDITIVO">Cabeça &amp; Auditivo</option>
                     <option value="OCULAR_RESPIRATORIO">Ocular &amp; Facial</option>
                     <option value="LUVAS">Luvas &amp; Manual</option>

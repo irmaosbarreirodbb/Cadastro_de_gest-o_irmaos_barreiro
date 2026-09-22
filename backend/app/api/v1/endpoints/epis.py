@@ -27,6 +27,7 @@ from app.schemas.epi import (
 from app.services.importer import preview_planilha, importar_planilha_para_banco
 from app.services.xml_importer import importar_nfe_para_banco
 from app.services.epi_pdf import gerar_ficha_epi_pdf
+from app.services.epi_classification import classificar_categoria
 
 
 router = APIRouter()
@@ -76,7 +77,9 @@ def criar_epi(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Cadastra manualmente um novo EPI."""
-    novo_epi = EPI(**epi_in.dict())
+    dados = epi_in.dict()
+    dados["categoria"] = classificar_categoria(dados.get("descricao"), dados.get("categoria"))
+    novo_epi = EPI(**dados)
     db.add(novo_epi)
     db.commit()
     db.refresh(novo_epi)
@@ -95,7 +98,13 @@ def atualizar_epi(
     if not epi:
         raise HTTPException(status_code=404, detail="EPI não encontrado.")
 
-    for field, val in epi_in.dict(exclude_unset=True).items():
+    dados = epi_in.dict(exclude_unset=True)
+    if "descricao" in dados or "categoria" in dados:
+        dados["categoria"] = classificar_categoria(
+            dados.get("descricao", epi.descricao),
+            dados.get("categoria", epi.categoria),
+        )
+    for field, val in dados.items():
         setattr(epi, field, val)
 
     db.commit()
