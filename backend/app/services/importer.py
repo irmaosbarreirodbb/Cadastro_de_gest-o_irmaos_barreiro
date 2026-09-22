@@ -7,6 +7,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 from app.models.epi import EPI, EntregaEPI
 from app.models.funcionario_epi import FuncionarioEPI
+from app.services.epi_classification import classificar_categoria
 
 
 def _normalizar_coluna(nome: str) -> str:
@@ -272,6 +273,7 @@ def importar_planilha_para_banco(file_bytes: bytes, filename: str, db: Session) 
             validade_ca = _limpar_valor_texto(row.get(mapa.get("validade_ca"))) if mapa.get("validade_ca") else None
             unidade = _limpar_valor_texto(row.get(mapa.get("unidade"))) or "UN"
             categoria = _limpar_valor_texto(row.get(mapa.get("categoria"))) if mapa.get("categoria") else None
+            categoria = classificar_categoria(descricao, categoria)
             
             estoque_real = _limpar_valor_numero(row.get(mapa.get("estoque_real"))) if mapa.get("estoque_real") else 0.0
             estoque_minimo = _limpar_valor_numero(row.get(mapa.get("estoque_minimo"))) if mapa.get("estoque_minimo") else 0.0
