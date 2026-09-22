@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Workflow, ShieldCheck, LogIn, ClipboardList, FileCheck, FileText } from 'lucide-react';
+import { Workflow, ShieldCheck, LogIn, ClipboardList, FileCheck, FileText, FlaskConical } from 'lucide-react';
 
 export default function FuncionamentoSite() {
   const cards = [
@@ -28,6 +28,18 @@ export default function FuncionamentoSite() {
       icon: FileText,
       title: 'Emissão do Recibo em PDF',
       text: 'Geração automática do Comprovante Cadastral com protocolo exclusivo e carimbo digital corporativo.'
+    },
+    {
+      num: '05',
+      icon: ShieldCheck,
+      title: 'Controle de EPIs (NR-6)',
+      text: 'Gestão de estoque mínimo, Certificados de Aprovação, importação de planilha e ficha NR-6 em PDF.'
+    },
+    {
+      num: '06',
+      icon: FlaskConical,
+      title: 'Exame Toxicológico',
+      text: 'Relação de motoristas com datas de exame e vencimento, alertas automáticos por e-mail 10 dias antes e exportação em PDF.'
     }
   ];
 

@@ -20,7 +20,8 @@ from app.models import (
     PermissaoTrabalho,
     EPI,
     EntregaEPI,
-    FuncionarioEPI
+    FuncionarioEPI,
+    ExameToxicologico
 )
 
 # Inicializa as tabelas no banco de dados PostgreSQL (Barreiro) automaticamente na inicialização
@@ -116,7 +117,29 @@ def init_db():
                 "ALTER TABLE entregas_epis ADD COLUMN IF NOT EXISTS tamanho VARCHAR(30);",
                 "ALTER TABLE entregas_epis ADD COLUMN IF NOT EXISTS local VARCHAR(100);",
                 "ALTER TABLE entregas_epis ADD COLUMN IF NOT EXISTS motivo VARCHAR(20) DEFAULT 'A';",
-                "ALTER TABLE entregas_epis ADD COLUMN IF NOT EXISTS termo_assinado BOOLEAN DEFAULT FALSE;"
+                "ALTER TABLE entregas_epis ADD COLUMN IF NOT EXISTS termo_assinado BOOLEAN DEFAULT FALSE;",
+                """
+                CREATE TABLE IF NOT EXISTS exames_toxicologicos (
+                    id SERIAL PRIMARY KEY,
+                    nome VARCHAR(150) NOT NULL,
+                    data_exame VARCHAR(30) NOT NULL,
+                    data_vencimento VARCHAR(30) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """,
+                # Tabela de controle: evita envio duplicado de alertas de e-mail
+                """
+                CREATE TABLE IF NOT EXISTS alertas_exames_enviados (
+                    id             SERIAL PRIMARY KEY,
+                    exame_id       INTEGER NOT NULL,
+                    nome_motorista VARCHAR(150) NOT NULL,
+                    data_envio     DATE NOT NULL DEFAULT CURRENT_DATE,
+                    tipo           VARCHAR(20) NOT NULL DEFAULT 'VENCENDO',
+                    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_alertas_exame_data ON alertas_exames_enviados (exame_id, data_envio);"
             ]
             for sql in migration_sqls:
                 try:
@@ -144,6 +167,100 @@ def init_db():
 
 # Executa criação de tabelas e seeds
 init_db()
+
+# ============================================================================
+# Scheduler inteligente de alertas de exames toxicológicos
+#
+# Comportamento:
+#   • Dispara todos os dias às 08:00 (horário local do servidor)
+#   • Usa sistema anti-duplicata baseado em banco de dados
+#   • Exames VENCENDO (≤ 10 dias): alerta enviado uma única vez ao entrar na janela
+#   • Exames VENCIDOS: realerta a cada 3 dias até ser renovado
+#   • Resistente a reinicializações: o controle está no banco, não em memória
+#   • Recuperação automática de erros: aguarda 5 min e tenta novamente
+# ============================================================================
+import threading
+import time as _time
+
+def _scheduler_alertas_exames():
+    """
+    Thread daemon com scheduler diário preciso às 08:00.
+    Sistema anti-duplicata persistente via tabela alertas_exames_enviados.
+    """
+    import datetime as _dt
+    from app.core.database import SessionLocal as _SessionLocal
+    from app.services.email_service import verificar_e_enviar_alertas
+
+    # Aguarda 30s após o boot para o banco estar 100% pronto
+    _time.sleep(30)
+    print("🔔 Scheduler de exames toxicológicos iniciado.")
+
+    while True:
+        agora = _dt.datetime.now()
+
+        # ── Calcula próxima execução às 08:00 ──
+        proximo_disparo = agora.replace(hour=8, minute=0, second=0, microsecond=0)
+        if agora >= proximo_disparo:
+            # Já passou das 08:00 de hoje → próxima é amanhã às 08:00
+            proximo_disparo += _dt.timedelta(days=1)
+
+        espera_seg = (proximo_disparo - agora).total_seconds()
+        horas      = int(espera_seg // 3600)
+        minutos    = int((espera_seg % 3600) // 60)
+        print(
+            f"⏰ Scheduler exames: próximo disparo em "
+            f"{horas}h {minutos}min "
+            f"({proximo_disparo.strftime('%d/%m/%Y às %H:%M')})"
+        )
+
+        # Dorme até às 08:00
+        _time.sleep(espera_seg)
+
+        # ── Executa verificação inteligente ──
+        print(f"\n🚀 Scheduler exames: iniciando verificação às {_dt.datetime.now().strftime('%H:%M:%S')} de {_dt.date.today().strftime('%d/%m/%Y')}")
+        tentativas = 0
+        while tentativas < 3:
+            db = None
+            try:
+                db = _SessionLocal()
+                resultado = verificar_e_enviar_alertas(db)
+
+                total    = resultado.get("total_alertas", 0)
+                enviado  = resultado.get("enviado", False)
+                mensagem = resultado.get("mensagem", "concluído.")
+                motoristas = resultado.get("motoristas", [])
+
+                if total > 0 and enviado:
+                    print(f"📧 E-mail de alerta enviado! {total} motorista(s): {', '.join(motoristas)}")
+                elif total > 0 and not enviado:
+                    print(f"⚠️  Alerta detectado mas falha no envio: {mensagem}")
+                else:
+                    print(f"📭 Nenhum alerta necessário hoje.")
+                break  # Sucesso — sai do loop de tentativas
+
+            except Exception as exc:
+                tentativas += 1
+                print(f"❌ Scheduler exames — erro (tentativa {tentativas}/3): {exc}")
+                if tentativas < 3:
+                    _time.sleep(300)  # Aguarda 5 min antes de tentar novamente
+            finally:
+                if db:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+        print(f"✅ Ciclo do scheduler encerrado em {_dt.datetime.now().strftime('%H:%M:%S')}\n")
+
+
+# Inicia a thread daemon — não bloqueia o servidor
+_thread_alertas = threading.Thread(
+    target=_scheduler_alertas_exames,
+    daemon=True,
+    name="AlertasExamesToxicologicos"
+)
+_thread_alertas.start()
+print("✅ Thread de alertas automáticos de exames toxicológicos registrada.")
 
 # Desabilita a interface Swagger (/docs) e ReDoc (/redoc) em produção
 # para não expor a estrutura completa da API publicamente.

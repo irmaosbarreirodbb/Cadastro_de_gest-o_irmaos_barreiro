@@ -698,3 +698,90 @@ export async function limparFuncionariosEpiApi() {
   return await res.json();
 }
 
+// ==========================================
+// MÓDULO DE EXAMES TOXICOLÓGICOS
+// ==========================================
+
+export async function getExamesToxicologicosApi({ busca = '', status = '' } = {}) {
+  let url = `${API_BASE_URL}/exames?`;
+  const params = new URLSearchParams();
+  if (busca) params.append('busca', busca);
+  if (status) params.append('status', status);
+  url += params.toString();
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Erro ao carregar exames toxicológicos');
+  return await res.json();
+}
+
+export async function createExameToxicologicoApi(data) {
+  const res = await fetch(`${API_BASE_URL}/exames`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao cadastrar exame');
+  }
+  return await res.json();
+}
+
+export async function updateExameToxicologicoApi(id, data) {
+  const res = await fetch(`${API_BASE_URL}/exames/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao atualizar exame');
+  }
+  return await res.json();
+}
+
+export async function deleteExameToxicologicoApi(id) {
+  const res = await fetch(`${API_BASE_URL}/exames/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Erro ao excluir exame');
+  return true;
+}
+
+export async function importarPlanilhaExameApi(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE_URL}/exames/importar-planilha`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao importar planilha de exames');
+  }
+  return await res.json();
+}
+
+export async function exportarPdfExamesApi() {
+  const res = await fetch(`${API_BASE_URL}/exames/exportar-pdf`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao gerar PDF de exames');
+  }
+  return await res.blob();
+}
+
+export async function verificarVencimentosExamesApi() {
+  const res = await fetch(`${API_BASE_URL}/exames/verificar-vencimentos`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao verificar vencimentos');
+  }
+  return await res.json();
+}
