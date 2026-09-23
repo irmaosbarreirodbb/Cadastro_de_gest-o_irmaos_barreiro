@@ -61,6 +61,10 @@ def _get_email_to() -> str:
     return settings.ALERT_EMAIL_TO.strip()
 
 
+def _get_logo_url() -> str:
+    return settings.ALERT_LOGO_URL.strip()
+
+
 def _get_email_from() -> dict:
     return {
         "email": settings.ALERT_EMAIL_FROM.strip(),
@@ -71,6 +75,7 @@ def _get_email_from() -> dict:
 # ─── Construtor do e-mail HTML ────────────────────────────────────────────────
 
 def _construir_html(exames: List[ExameToxicologico]) -> str:
+    logo_url = _get_logo_url()
     linhas_tabela = ""
     for ex in exames:
         dias = ex.dias_para_vencer
@@ -118,10 +123,11 @@ def _construir_html(exames: List[ExameToxicologico]) -> str:
           <!-- Cabeçalho Vermelho -->
           <tr>
             <td style="background: linear-gradient(135deg, #DC2626 0%, #7F1D1D 100%); padding: 30px 36px; text-align: center;">
-              <p style="color:#ffffff; font-size: 24px; font-weight: 900; margin: 0 0 4px; letter-spacing: -0.5px;">
+              {f'<img src="{logo_url}" alt="Irmaos Barreiro" width="270" style="display:block; width:270px; max-width:100%; height:auto; margin:0 auto 14px;" />' if logo_url else ''}
+              <p style="display:none; color:#ffffff; font-size: 24px; font-weight: 900; margin: 0 0 4px; letter-spacing: -0.5px;">
                 🚛 Irmãos Barreiro
               </p>
-              <p style="color:#FCA5A5; font-size: 13px; margin: 0; font-weight: 500;">
+              <p style="display:none; color:#FCA5A5; font-size: 13px; margin: 0; font-weight: 500;">
                 Distribuidora de Bebidas — Sistema Automático de Alertas
               </p>
             </td>

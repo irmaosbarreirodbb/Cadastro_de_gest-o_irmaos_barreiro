@@ -246,7 +246,7 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
         resolve(canvas.toDataURL('image/png'));
       };
       logo.onerror = () => reject(new Error('Não foi possível carregar o logotipo corporativo.'));
-      logo.src = '/logo-irmaos-barreiro.svg';
+      logo.src = '/brand/logo-irmaos-barreiro.png';
     });
     return logoPdfRef.current;
   }
