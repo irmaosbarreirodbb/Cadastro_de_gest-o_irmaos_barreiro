@@ -323,7 +323,7 @@ export default function PortalColaborador({ user, onLogout }) {
                   </div>
 
                   {/* Resumo Breve das Etapas / Módulos */}
-                  <div className="pt-4 border-t border-white/20 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 text-xs">
+                  <div className="pt-4 border-t border-white/20 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div className="bg-white/10 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 space-y-1">
                       <span className="font-extrabold text-white uppercase flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-red-200" />
@@ -408,7 +408,7 @@ export default function PortalColaborador({ user, onLogout }) {
               </div>
 
               {/* GRID DOS BOTÕES PRINCIPAIS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
                 
                 {/* BOTÃO 1: RELATÓRIO COM DADOS INDIVIDUAIS */}
                 <button
