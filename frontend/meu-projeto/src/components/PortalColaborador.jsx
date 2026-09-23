@@ -9,6 +9,7 @@ import RelatorioSolar from './RelatorioSolar';
 import RegistroFuncionarios from './RegistroFuncionarios';
 import PermissaoTrabalhos from './PermissaoTrabalhos';
 import ControleEPIs from './ControleEPIs';
+import ExamesToxicologicos from './ExamesToxicologicos';
 import Footer from './Footer';
 import { 
   getDiaristasApi, 
@@ -28,7 +29,8 @@ import {
   Sun,
   Briefcase,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  FlaskConical
 } from 'lucide-react';
 
 export default function PortalColaborador({ user, onLogout }) {
@@ -321,7 +323,7 @@ export default function PortalColaborador({ user, onLogout }) {
                   </div>
 
                   {/* Resumo Breve das Etapas / Módulos */}
-                  <div className="pt-4 border-t border-white/20 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 text-xs">
+                  <div className="pt-4 border-t border-white/20 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div className="bg-white/10 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 space-y-1">
                       <span className="font-extrabold text-white uppercase flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-red-200" />
@@ -391,12 +393,22 @@ export default function PortalColaborador({ user, onLogout }) {
                         Estoque mínimo, CAs, importação de planilhas/NF-e e ficha NR-6 em PDF.
                       </p>
                     </div>
+
+                    <div className="bg-white/10 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 space-y-1">
+                      <span className="font-extrabold text-white uppercase flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5 text-violet-300" />
+                        8. Exame Toxicológico
+                      </span>
+                      <p className="text-red-100/90 text-[11px] leading-relaxed">
+                        Controle de vencimentos, alertas automáticos por e-mail e exportação em PDF.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* GRID DOS BOTÕES PRINCIPAIS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3.5 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
                 
                 {/* BOTÃO 1: RELATÓRIO COM DADOS INDIVIDUAIS */}
                 <button
@@ -569,6 +581,30 @@ export default function PortalColaborador({ user, onLogout }) {
                   </div>
                 </button>
 
+                {/* BOTÃO 8: EXAME TOXICOLÓGICO */}
+                <button
+                  id="btn-exame-toxicologico"
+                  onClick={() => setActiveModule('exames')}
+                  className="group bg-white hover:bg-violet-50/50 rounded-3xl p-4 sm:p-5 border border-zinc-200 shadow-xl hover:shadow-2xl hover:border-violet-500/50 transition-all duration-200 flex flex-col justify-between text-left cursor-pointer min-h-[210px]"
+                >
+                  <div className="space-y-3">
+                    <div className="w-11 h-11 rounded-2xl bg-violet-50 group-hover:bg-violet-600 text-violet-600 group-hover:text-white flex items-center justify-center transition-colors">
+                      <FlaskConical className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-sm sm:text-base font-black text-zinc-900 group-hover:text-violet-600 transition-colors leading-snug">
+                      Exame Toxicológico
+                    </h2>
+                    <p className="text-xs text-zinc-500 line-clamp-2">
+                      Relação de motoristas, controle de vencimentos, alertas por e-mail e PDF.
+                    </p>
+                  </div>
+
+                  <div className="pt-3 flex items-center gap-1.5 text-xs font-bold text-violet-600">
+                    <span>Acessar Exames</span>
+                    <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
+
               </div>
             </div>
           )}
@@ -659,6 +695,15 @@ export default function PortalColaborador({ user, onLogout }) {
           {/* ========================================================= */}
           {activeModule === 'epis' && (
             <ControleEPIs
+              onBack={() => setActiveModule('hub')}
+            />
+          )}
+
+          {/* ========================================================= */}
+          {/* 10. MÓDULO EXAME TOXICOLÓGICO                              */}
+          {/* ========================================================= */}
+          {activeModule === 'exames' && (
+            <ExamesToxicologicos
               onBack={() => setActiveModule('hub')}
             />
           )}

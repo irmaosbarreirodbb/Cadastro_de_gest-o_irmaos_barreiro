@@ -10,6 +10,7 @@ from app.models.documento_pessoa_juridica import DocumentoPessoaJuridica
 from app.models.permissao_trabalho import PermissaoTrabalho
 from app.models.epi import EPI, EntregaEPI
 from app.models.funcionario_epi import FuncionarioEPI
+from app.models.exame_toxicologico import ExameToxicologico
 
 __all__ = [
     "Usuario", 
@@ -24,5 +25,6 @@ __all__ = [
     "PermissaoTrabalho",
     "EPI",
     "EntregaEPI",
-    "FuncionarioEPI"
+    "FuncionarioEPI",
+    "ExameToxicologico"
 ]
