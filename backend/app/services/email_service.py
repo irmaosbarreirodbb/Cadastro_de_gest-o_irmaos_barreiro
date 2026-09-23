@@ -14,6 +14,7 @@ import requests
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from typing import List
+from html import escape
 from sqlalchemy import Column, Integer, String, Date, DateTime, text
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,7 @@ def _get_brevo_key() -> str:
 def _get_email_to() -> str:
     return settings.ALERT_EMAIL_TO.strip()
 
+
 def _get_email_from() -> dict:
     return {
         "email": settings.ALERT_EMAIL_FROM.strip(),
@@ -87,9 +89,9 @@ def _construir_html(exames: List[ExameToxicologico]) -> str:
 
         linhas_tabela += f"""
         <tr style="background:{row_bg}; border-bottom: 1px solid #E2E8F0;">
-          <td style="padding: 11px 14px; font-size: 13px; color: #1E293B; font-weight: 600;">{ex.nome}</td>
-          <td style="padding: 11px 14px; font-size: 13px; color: #475569; text-align: center;">{ex.data_exame}</td>
-          <td style="padding: 11px 14px; font-size: 13px; color: #475569; text-align: center;">{ex.data_vencimento}</td>
+          <td style="padding: 11px 14px; font-size: 13px; color: #1E293B; font-weight: 600;">{escape(str(ex.nome))}</td>
+          <td style="padding: 11px 14px; font-size: 13px; color: #475569; text-align: center;">{escape(str(ex.data_exame))}</td>
+          <td style="padding: 11px 14px; font-size: 13px; color: #475569; text-align: center;">{escape(str(ex.data_vencimento))}</td>
           <td style="padding: 11px 14px; text-align: center;">
             <span style="background:{badge_cor}; color:#fff; padding: 4px 11px; border-radius: 20px;
                          font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: 0.3px;">
