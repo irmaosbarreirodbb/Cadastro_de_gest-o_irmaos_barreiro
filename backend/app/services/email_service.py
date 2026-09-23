@@ -12,11 +12,13 @@ import os
 import json
 import requests
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from typing import List
 from sqlalchemy import Column, Integer, String, Date, DateTime, text
 from sqlalchemy.orm import Session
 
 from app.core.database import Base
+from app.core.config import settings
 from app.models.exame_toxicologico import ExameToxicologico
 
 
@@ -25,6 +27,11 @@ from app.models.exame_toxicologico import ExameToxicologico
 BREVO_API_URL  = "https://api.brevo.com/v3/smtp/email"
 DIAS_ALERTA    = 10   # Janela de alerta: ≤ 10 dias para vencer
 DIAS_REENVIO_VENCIDO = 3  # Reenvia alerta a cada N dias para exames já vencidos
+FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
+
+
+def _hoje_local() -> date:
+    return datetime.now(FUSO_HORARIO).date()
 
 
 # ─── Modelo de controle de alertas enviados ───────────────────────────────────
@@ -47,14 +54,14 @@ class AlertaExameEnviado(Base):
 # ─── Helpers de credenciais ───────────────────────────────────────────────────
 
 def _get_brevo_key() -> str:
-    return os.getenv("BREVO_API_KEY", "")
+    return settings.BREVO_API_KEY.strip()
 
 def _get_email_to() -> str:
-    return os.getenv("ALERT_EMAIL_TO", "")
+    return settings.ALERT_EMAIL_TO.strip()
 
 def _get_email_from() -> dict:
     return {
-        "email": os.getenv("ALERT_EMAIL_FROM", "noreply@irmaosbarreiro.com.br"),
+        "email": settings.ALERT_EMAIL_FROM.strip(),
         "name": os.getenv("ALERT_EMAIL_FROM_NAME", "Irmãos Barreiro — Alertas")
     }
 
@@ -92,7 +99,7 @@ def _construir_html(exames: List[ExameToxicologico]) -> str:
         </tr>"""
 
     total       = len(exames)
-    data_envio  = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    data_envio  = datetime.now(FUSO_HORARIO).strftime("%d/%m/%Y às %H:%M")
     vencendo    = sum(1 for e in exames if e.dias_para_vencer >= 0)
     vencidos    = total - vencendo
 
@@ -288,7 +295,7 @@ def _garantir_tabela_alertas(db: Session) -> None:
 
 def _ja_recebeu_alerta_hoje(db: Session, exame_id: int) -> bool:
     """Verifica se o motorista já recebeu alerta hoje."""
-    hoje = date.today()
+    hoje = _hoje_local()
     resultado = db.execute(text("""
         SELECT 1 FROM alertas_exames_enviados
         WHERE exame_id = :eid AND data_envio = :hoje
@@ -310,7 +317,7 @@ def _ultimo_alerta(db: Session, exame_id: int) -> "date | None":
 
 def _registrar_alerta(db: Session, exame: ExameToxicologico) -> None:
     """Salva o registro de alerta enviado hoje para este motorista."""
-    hoje = date.today()
+    hoje = _hoje_local()
     tipo = "VENCIDO" if exame.dias_para_vencer < 0 else "VENCENDO"
     db.execute(text("""
         INSERT INTO alertas_exames_enviados (exame_id, nome_motorista, data_envio, tipo)
@@ -338,7 +345,7 @@ def verificar_e_enviar_alertas(db: Session) -> dict:
     # Garante que a tabela de controle existe
     _garantir_tabela_alertas(db)
 
-    hoje = date.today()
+    hoje = _hoje_local()
     todos_exames = db.query(ExameToxicologico).all()
     a_alertar: List[ExameToxicologico] = []
 

@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy import Column, Integer, String, DateTime
 from app.core.database import Base
 
@@ -18,6 +19,11 @@ class ExameToxicologico(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    @staticmethod
+    def hoje_local():
+        """Data oficial do sistema para vencimentos e alertas."""
+        return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+
     @property
     def dias_para_vencer(self) -> int:
         """Retorna quantos dias faltam para o vencimento. Negativo = já vencido."""
@@ -29,7 +35,7 @@ class ExameToxicologico(Base):
                 venc = datetime.strptime(self.data_vencimento, "%Y-%m-%d")
             except ValueError:
                 return 9999
-        return (venc.date() - datetime.utcnow().date()).days
+        return (venc.date() - self.hoje_local()).days
 
     @property
     def status(self) -> str:

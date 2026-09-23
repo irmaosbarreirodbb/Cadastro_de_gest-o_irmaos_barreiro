@@ -2,12 +2,12 @@ import io
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, text
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.models.exame_toxicologico import ExameToxicologico
 from app.models.usuario import Usuario
 from app.api.deps import get_current_user
@@ -23,6 +23,17 @@ from app.services.email_service import verificar_e_enviar_alertas
 router = APIRouter()
 
 _TAMANHO_MAX = 10 * 1024 * 1024  # 10 MB
+
+
+def _verificar_alertas_em_background() -> None:
+    """Verifica alertas após uma alteração, sem atrasar a resposta da API."""
+    db = SessionLocal()
+    try:
+        verificar_e_enviar_alertas(db)
+    except Exception as exc:
+        print(f"⚠️ Verificação de alerta após alteração falhou: {exc}")
+    finally:
+        db.close()
 
 
 # ============================================================================
@@ -54,6 +65,7 @@ def listar_exames(
 @router.post("", response_model=ExameToxicologicoOut, status_code=status.HTTP_201_CREATED)
 def criar_exame(
     dados: ExameToxicologicoCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -80,6 +92,7 @@ def criar_exame(
     db.add(novo)
     db.commit()
     db.refresh(novo)
+    background_tasks.add_task(_verificar_alertas_em_background)
     return novo
 
 
@@ -91,6 +104,7 @@ def criar_exame(
 def atualizar_exame(
     exame_id: int,
     dados: ExameToxicologicoUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -100,12 +114,20 @@ def atualizar_exame(
         raise HTTPException(status_code=404, detail="Exame não encontrado.")
 
     update_data = dados.dict(exclude_unset=True)
+    validade_alterada = "data_vencimento" in update_data
     for field, val in update_data.items():
         setattr(exame, field, val.strip() if isinstance(val, str) else val)
 
     exame.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(exame)
+    if validade_alterada:
+        db.execute(
+            text("DELETE FROM alertas_exames_enviados WHERE exame_id = :exame_id"),
+            {"exame_id": exame.id},
+        )
+        db.commit()
+    background_tasks.add_task(_verificar_alertas_em_background)
     return exame
 
 
@@ -149,6 +171,7 @@ def limpar_todos_exames(
 
 @router.post("/importar-planilha", response_model=ImportacaoExameResultadoOut)
 async def importar_planilha(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -169,6 +192,8 @@ async def importar_planilha(
         raise HTTPException(status_code=400, detail=f"Erro ao processar planilha: {str(e)}")
 
     total_importados = inseridos + atualizados
+    if total_importados:
+        background_tasks.add_task(_verificar_alertas_em_background)
     return ImportacaoExameResultadoOut(
         total_importados=inseridos,
         total_atualizados=atualizados,
@@ -357,6 +382,47 @@ def _gerar_pdf(exames: List[ExameToxicologico]) -> bytes:
         Paragraph(
             f"<font color='#94A3B8' size='7'>Total de motoristas: {len(exames)}</font>",
             ParagraphStyle("Total", fontSize=7, alignment=TA_RIGHT, spaceBefore=2)
+        )
+    )
+
+    # Remove a legenda antiga (que usava emojis e podia virar quadrados)
+    # e recria os marcadores com células coloridas compatíveis com qualquer fonte.
+    elementos = [
+        item for item in elementos
+        if not (
+            hasattr(item, "getPlainText")
+            and (
+                "Fundo amarelo" in item.getPlainText()
+                or "Total de motoristas:" in item.getPlainText()
+            )
+        )
+    ]
+    legenda = Table(
+        [[
+            "",
+            Paragraph("Fundo amarelo = vencendo em ate 10 dias", ParagraphStyle("LegendaAmarela", fontSize=7, textColor=colors.HexColor("#64748B"))),
+            "",
+            Paragraph("Fundo vermelho = vencido", ParagraphStyle("LegendaVermelha", fontSize=7, textColor=colors.HexColor("#64748B"))),
+        ]],
+        colWidths=[3.5 * mm, 58 * mm, 3.5 * mm, 34 * mm],
+        hAlign="CENTER",
+    )
+    legenda.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), AMARELO_FUNDO),
+        ("BACKGROUND", (2, 0), (2, 0), VERMELHO_CLARO),
+        ("BOX", (0, 0), (0, 0), 0.3, colors.HexColor("#D97706")),
+        ("BOX", (2, 0), (2, 0), 0.3, colors.HexColor("#DC2626")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 1),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+    ]))
+    elementos.append(legenda)
+    elementos.append(
+        Paragraph(
+            f"<font color='#94A3B8' size='7'>Total de motoristas: {len(exames)}</font>",
+            ParagraphStyle("TotalFinal", fontSize=7, alignment=TA_RIGHT, spaceBefore=3),
         )
     )
 

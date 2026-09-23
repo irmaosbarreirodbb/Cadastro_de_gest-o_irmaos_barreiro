@@ -1,5 +1,8 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Distribuidora Irmãos Barreiro - Backend API"
@@ -18,11 +21,21 @@ class Settings(BaseSettings):
     # DEVE ser diferente da SECRET_KEY. Se não definida, cai para a SECRET_KEY
     # por compatibilidade com ambientes antigos — defina-a explicitamente em produção.
     ENCRYPTION_KEY: str = ""
+
+    BREVO_API_KEY: str = ""
+    ALERT_EMAIL_TO: str = ""
+    ALERT_EMAIL_FROM: str = "noreply@irmaosbarreiro.com.br"
+    ALERT_EMAIL_FROM_NAME: str = "Irmaos Barreiro - Alertas"
     
     # Chaves legadas opcionais (separadas por vírgula) para descriptografar dados históricos
     # sem embutir senhas ou chaves fixas no código fonte.
     LEGACY_ENCRYPTION_KEYS: str = ""
     
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # Resolve o arquivo junto ao backend, mesmo quando o Uvicorn é iniciado pela raiz.
+    model_config = SettingsConfigDict(
+        env_file=str(BACKEND_DIR / ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 settings = Settings()
