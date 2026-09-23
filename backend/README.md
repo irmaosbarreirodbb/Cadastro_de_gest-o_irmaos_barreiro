@@ -27,3 +27,27 @@ Consulte o arquivo principal na raiz do projeto: [PLANO_DESENVOLVIMENTO_BACKEND.
    ```bash
    uvicorn app.main:app --reload --port 8000
    ```
+
+## Deploy no Railway
+
+Configure o serviço do backend com a raiz apontando para `backend/`. O projeto já possui `Dockerfile` e `Procfile`, e o comando de inicialização usa a porta fornecida pelo Railway.
+
+No Railway, abra `Backend > Variables` e cadastre:
+
+| Variável | Valor |
+|---|---|
+| `DATABASE_URL` | Referência ao PostgreSQL do Railway, normalmente `${{Postgres.DATABASE_URL}}` |
+| `SECRET_KEY` | Chave aleatória longa e exclusiva do backend |
+| `ENCRYPTION_KEY` | Chave Fernet exclusiva para dados sensíveis |
+| `ALGORITHM` | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `480` |
+| `ENVIRONMENT` | `production` |
+| `BREVO_API_KEY` | Chave da API transacional da Brevo (`xkeysib-...`) |
+| `ALERT_EMAIL_TO` | E-mail que receberá os alertas |
+| `ALERT_EMAIL_FROM` | Remetente validado na Brevo |
+| `ALERT_EMAIL_FROM_NAME` | `Irmaos Barreiro - Alertas` |
+| `ALLOWED_ORIGINS` | Domínio público do frontend, com `https://` |
+
+Na Brevo, valide o endereço usado em `ALERT_EMAIL_FROM`. Depois de salvar as variáveis, faça um novo deploy ou restart do backend. Sem `BREVO_API_KEY` ou `ALERT_EMAIL_TO`, o sistema não envia mensagens.
+
+Para testar sem esperar até 08:00, cadastre ou edite um exame dentro da janela de 10 dias. O backend executa uma verificação em segundo plano após a alteração.
