@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     ALERT_EMAIL_TO: str = ""
     ALERT_EMAIL_FROM: str = "noreply@irmaosbarreiro.com.br"
     ALERT_EMAIL_FROM_NAME: str = "Irmaos Barreiro"
+    ALERT_LOGO_URL: str = "https://distribuidorairmaosbarreirobebidas.up.railway.app/brand/logo-irmaos-barreiro.png"
     
     # Chaves legadas opcionais (separadas por vírgula) para descriptografar dados históricos
     # sem embutir senhas ou chaves fixas no código fonte.

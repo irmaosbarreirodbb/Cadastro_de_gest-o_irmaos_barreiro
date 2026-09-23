@@ -39,6 +39,18 @@ const modules = [
     desc: 'Emissão e gestão de PTs obrigatórias de segurança antes do início de operações de risco em campo.',
     action: 'Emitir PTs de segurança',
   },
+  {
+    num: '07',
+    title: 'Controle de EPIs',
+    desc: 'Controle de estoque, entregas, certificados de aprovacao e validade dos equipamentos de protecao.',
+    action: 'Acessar controle de EPIs',
+  },
+  {
+    num: '08',
+    title: 'Exame toxicologico',
+    desc: 'Relacao de motoristas, acompanhamento dos vencimentos, alertas automaticos e exportacao em PDF.',
+    action: 'Acessar exames',
+  },
 ];
 
 export default function Historia({ isLoggedIn, onOpenLogin }) {
@@ -66,7 +78,7 @@ export default function Historia({ isLoggedIn, onOpenLogin }) {
             Plataforma Interna de Gestão & Operação
           </div>
           <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight drop-shadow-lg">
-            SISTEMA DE GESTÃO <span className="text-white/50 font-light">|</span> <span className="whitespace-nowrap text-white font-extrabold">IRMÃOS BARREIRO</span>
+            SISTEMA DE GESTÃO DE <span className="text-white/50 font-light"></span> <span className="whitespace-nowrap text-white font-extrabold">CADASTRO DE TERCEIROS</span>
           </h1>
           <p className="mt-4 max-w-2xl text-sm sm:text-base leading-relaxed text-white/90 drop-shadow">
             Uma plataforma integrada para organizar e acompanhar as rotinas administrativas e operacionais da Distribuidora Irmãos Barreiro. O sistema reúne, em um só ambiente, o cadastro de colaboradores, controle de diaristas e pagamentos, emissão de recibos, relatórios, controle de EPI´s e segurança do trabalho, oferecendo mais segurança, agilidade e clareza para a equipe.
@@ -102,12 +114,12 @@ export default function Historia({ isLoggedIn, onOpenLogin }) {
           <span className="font-mono text-[10px] font-semibold text-white/60 uppercase tracking-wider">FLUXO OPERACIONAL</span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {modules.map(item => (
             <button
               key={item.num}
               onClick={goToPortal}
-              className="group flex min-h-[200px] flex-col justify-between border border-white/40 bg-white/70 backdrop-blur-md p-6 text-left shadow-sm transition hover:border-white/60 hover:bg-white/85 hover:shadow-md rounded-2xl"
+              className="group flex min-h-[190px] flex-col justify-between border border-white/40 bg-white/70 backdrop-blur-md p-5 text-left shadow-sm transition hover:border-white/60 hover:bg-white/85 hover:shadow-md rounded-xl"
             >
               <div>
                 <span className="font-mono text-2xl font-bold text-red-600">{item.num}</span>

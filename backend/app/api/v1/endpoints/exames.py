@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
@@ -236,7 +237,7 @@ def _gerar_pdf(exames: List[ExameToxicologico]) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from reportlab.platypus import HRFlowable
@@ -289,6 +290,11 @@ def _gerar_pdf(exames: List[ExameToxicologico]) -> bytes:
 
     # Cabeçalho
     elementos.append(Paragraph("IRMÃOS BARREIRO", estilo_empresa))
+    logo_path = Path(__file__).resolve().parents[4] / "brand" / "logo-irmaos-barreiro.png"
+    if logo_path.exists():
+        logo = Image(str(logo_path), width=58 * mm, height=58 * mm * 616 / 1280)
+        logo.hAlign = "CENTER"
+        elementos.insert(0, logo)
     elementos.append(Paragraph("Distribuidora de Bebidas Ltda", estilo_subtitulo))
     elementos.append(HRFlowable(width="100%", thickness=1, color=VERMELHO))
     elementos.append(Spacer(1, 4 * mm))
