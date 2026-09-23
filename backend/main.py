@@ -181,6 +181,7 @@ init_db()
 # ============================================================================
 import threading
 import time as _time
+from zoneinfo import ZoneInfo
 
 def _scheduler_alertas_exames():
     """
@@ -190,34 +191,43 @@ def _scheduler_alertas_exames():
     import datetime as _dt
     from app.core.database import SessionLocal as _SessionLocal
     from app.services.email_service import verificar_e_enviar_alertas
+    fuso_horario = ZoneInfo("America/Sao_Paulo")
 
     # Aguarda 30s após o boot para o banco estar 100% pronto
     _time.sleep(30)
     print("🔔 Scheduler de exames toxicológicos iniciado.")
+    primeira_verificacao = True
 
     while True:
-        agora = _dt.datetime.now()
+        agora = _dt.datetime.now(fuso_horario)
 
-        # ── Calcula próxima execução às 08:00 ──
-        proximo_disparo = agora.replace(hour=8, minute=0, second=0, microsecond=0)
-        if agora >= proximo_disparo:
-            # Já passou das 08:00 de hoje → próxima é amanhã às 08:00
-            proximo_disparo += _dt.timedelta(days=1)
+        if primeira_verificacao:
+            # Captura registros feitos antes do restart sem esperar até amanhã.
+            espera_seg = 0
+            primeira_verificacao = False
+            print("⏰ Scheduler exames: verificação inicial após o boot")
+        else:
+            # ── Calcula próxima execução às 08:00 ──
+            proximo_disparo = agora.replace(hour=8, minute=0, second=0, microsecond=0)
+            if agora >= proximo_disparo:
+                # Já passou das 08:00 de hoje → próxima é amanhã às 08:00
+                proximo_disparo += _dt.timedelta(days=1)
 
-        espera_seg = (proximo_disparo - agora).total_seconds()
-        horas      = int(espera_seg // 3600)
-        minutos    = int((espera_seg % 3600) // 60)
-        print(
-            f"⏰ Scheduler exames: próximo disparo em "
-            f"{horas}h {minutos}min "
-            f"({proximo_disparo.strftime('%d/%m/%Y às %H:%M')})"
-        )
+            espera_seg = (proximo_disparo - agora).total_seconds()
+            horas      = int(espera_seg // 3600)
+            minutos    = int((espera_seg % 3600) // 60)
+            print(
+                f"⏰ Scheduler exames: próximo disparo em "
+                f"{horas}h {minutos}min "
+                f"({proximo_disparo.strftime('%d/%m/%Y às %H:%M')})"
+            )
 
         # Dorme até às 08:00
         _time.sleep(espera_seg)
 
         # ── Executa verificação inteligente ──
-        print(f"\n🚀 Scheduler exames: iniciando verificação às {_dt.datetime.now().strftime('%H:%M:%S')} de {_dt.date.today().strftime('%d/%m/%Y')}")
+        agora_execucao = _dt.datetime.now(fuso_horario)
+        print(f"\n🚀 Scheduler exames: iniciando verificação às {agora_execucao.strftime('%H:%M:%S')} de {agora_execucao.strftime('%d/%m/%Y')}")
         tentativas = 0
         while tentativas < 3:
             db = None
@@ -250,7 +260,7 @@ def _scheduler_alertas_exames():
                     except Exception:
                         pass
 
-        print(f"✅ Ciclo do scheduler encerrado em {_dt.datetime.now().strftime('%H:%M:%S')}\n")
+        print(f"✅ Ciclo do scheduler encerrado em {_dt.datetime.now(fuso_horario).strftime('%H:%M:%S')}\n")
 
 
 # Inicia a thread daemon — não bloqueia o servidor
@@ -328,6 +338,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/")
 def read_root():
     return {"status": "online"}
+
 
 @app.get("/health")
 def health_check():
