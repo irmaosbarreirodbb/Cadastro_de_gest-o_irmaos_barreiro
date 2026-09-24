@@ -15,6 +15,10 @@ class ColaboradorCadastro(Base):
     cpf = Column(Text, index=True, nullable=False)
     rg = Column(Text, nullable=False)
     data_nascimento = Column(String(20), nullable=True)
+    cnh_numero = Column(String(50), nullable=True)
+    cnh_validade = Column(String(20), nullable=True)
+    exame_toxicologico_emissao = Column(String(20), nullable=True)
+    exame_toxicologico_vencimento = Column(String(20), nullable=True)
 
     # Etapa 2: Endereço & Contato
     email = Column(String(255), nullable=False)

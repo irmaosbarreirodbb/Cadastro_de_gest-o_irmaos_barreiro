@@ -7,6 +7,10 @@ class ColaboradorCreate(BaseModel):
     cpf: str
     rg: str
     data_nascimento: Optional[str] = None
+    cnh_numero: Optional[str] = None
+    cnh_validade: Optional[str] = None
+    exame_toxicologico_emissao: Optional[str] = None
+    exame_toxicologico_vencimento: Optional[str] = None
     email: str
     telefone: str
     cep: str
