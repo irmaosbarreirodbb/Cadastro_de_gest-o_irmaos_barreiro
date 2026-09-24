@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getDiaristasApi } from '../services/api';
 import { 
   UserPlus, 
@@ -758,9 +759,10 @@ export default function CadastrarDiarista({ onBack, onSave, dataInicial, diarist
       </form>
 
       {/* MODAL / LISTAGEM COMPLETA DE TODOS OS FUNCIONÁRIOS DO BANCO DE DADOS */}
-      {mostrarTodosModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-zinc-200 animate-fadeIn">
+      {mostrarTodosModal && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMostrarTodosModal(false)} />
+          <div className="relative bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-zinc-200 animate-fadeIn z-10 my-auto">
             {/* Header do Modal */}
             <div className="p-6 bg-gradient-to-r from-red-600 to-zinc-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -838,7 +840,8 @@ export default function CadastrarDiarista({ onBack, onSave, dataInicial, diarist
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

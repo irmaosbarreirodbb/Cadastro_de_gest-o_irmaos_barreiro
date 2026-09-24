@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FlaskConical,
   Plus,
@@ -16,6 +17,11 @@ import {
   Save,
   FileSpreadsheet,
   Bell,
+  FileText,
+  FileUp,
+  Eye,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 import {
   getExamesToxicologicosApi,
@@ -24,9 +30,20 @@ import {
   deleteExameToxicologicoApi,
   importarPlanilhaExameApi,
   exportarPdfExamesApi,
+  uploadPdfExameApi,
+  visualizarPdfExameApi,
+  removerPdfExameApi,
 } from '../services/api';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
+
+function formatarBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 function badgeStatus(status, diasParaVencer) {
   if (status === 'VENCIDO') {
@@ -85,6 +102,15 @@ export default function ExamesToxicologicos({ onBack }) {
 
   // PDF
   const [gerandoPdf, setGerandoPdf] = useState(false);
+
+  // PDF do Exame Toxicológico
+  const [modalPdfExame, setModalPdfExame] = useState(null);
+  const [arquivoPdfUpload, setArquivoPdfUpload] = useState(null);
+  const [enviandoPdf, setEnviandoPdf] = useState(false);
+  const [removendoPdf, setRemovendoPdf] = useState(false);
+  const [visualizandoId, setVisualizandoId] = useState(null);
+  const [modalViewerPdf, setModalViewerPdf] = useState(null);
+  const pdfInputRef = useRef(null);
 
   // ── auto-dismiss mensagens ──
   useEffect(() => {
@@ -210,6 +236,85 @@ export default function ExamesToxicologicos({ onBack }) {
   };
 
   // E-mail é disparado automaticamente pelo servidor às 08:00 — sem ação manual necessária.
+
+  // ── Gestão de PDF do Exame ──
+  const handleAbrirModalPdf = (exame) => {
+    setModalPdfExame(exame);
+    setArquivoPdfUpload(null);
+  };
+
+  const handleFecharModalPdf = () => {
+    setModalPdfExame(null);
+    setArquivoPdfUpload(null);
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
+  };
+
+  const handleVisualizarPdf = async (exame) => {
+    try {
+      setVisualizandoId(exame.id);
+      const blob = await visualizarPdfExameApi(exame.id);
+      const url = URL.createObjectURL(blob);
+      setModalViewerPdf({
+        url,
+        nome: exame.pdf_nome || `exame_${exame.nome}.pdf`,
+        motorista: exame.nome,
+        exameId: exame.id,
+      });
+    } catch (err) {
+      setMensagemErro(err.message || 'Erro ao carregar PDF do laudo.');
+    } finally {
+      setVisualizandoId(null);
+    }
+  };
+
+  const handleFecharViewerPdf = () => {
+    if (modalViewerPdf?.url) {
+      URL.revokeObjectURL(modalViewerPdf.url);
+    }
+    setModalViewerPdf(null);
+  };
+
+  const handleSalvarPdf = async (e) => {
+    if (e) e.preventDefault();
+    if (!arquivoPdfUpload) {
+      setMensagemErro('Selecione um arquivo PDF para carregar.');
+      return;
+    }
+    if (!arquivoPdfUpload.name.toLowerCase().endsWith('.pdf') && arquivoPdfUpload.type !== 'application/pdf') {
+      setMensagemErro('Apenas arquivos no formato PDF são permitidos.');
+      return;
+    }
+    setEnviandoPdf(true);
+    try {
+      const atualizado = await uploadPdfExameApi(modalPdfExame.id, arquivoPdfUpload);
+      setMensagemSucesso(`Laudo PDF de "${modalPdfExame.nome}" armazenado com sucesso no banco de dados!`);
+      setModalPdfExame(atualizado);
+      setArquivoPdfUpload(null);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+      await carregarExames();
+    } catch (err) {
+      setMensagemErro(err.message || 'Erro ao armazenar PDF no banco.');
+    } finally {
+      setEnviandoPdf(false);
+    }
+  };
+
+  const handleRemoverPdf = async (exame) => {
+    if (!window.confirm(`Deseja remover o arquivo PDF do exame de "${exame.nome}"?`)) return;
+    setRemovendoPdf(true);
+    try {
+      const atualizado = await removerPdfExameApi(exame.id);
+      setMensagemSucesso('Arquivo PDF removido com sucesso.');
+      if (modalPdfExame && modalPdfExame.id === exame.id) {
+        setModalPdfExame(atualizado);
+      }
+      await carregarExames();
+    } catch (err) {
+      setMensagemErro(err.message || 'Erro ao remover PDF.');
+    } finally {
+      setRemovendoPdf(false);
+    }
+  };
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -403,6 +508,7 @@ export default function ExamesToxicologicos({ onBack }) {
                       <th className="text-center px-4 py-3.5 font-black text-slate-600 uppercase tracking-wide text-[11px]">Exame Toxicológico</th>
                       <th className="text-center px-4 py-3.5 font-black text-slate-600 uppercase tracking-wide text-[11px]">Vencimento</th>
                       <th className="text-center px-4 py-3.5 font-black text-slate-600 uppercase tracking-wide text-[11px]">Situação</th>
+                      <th className="text-center px-4 py-3.5 font-black text-slate-600 uppercase tracking-wide text-[11px]">Laudo (PDF)</th>
                       <th className="text-center px-4 py-3.5 font-black text-slate-600 uppercase tracking-wide text-[11px]">Ação</th>
                     </tr>
                   </thead>
@@ -444,6 +550,42 @@ export default function ExamesToxicologicos({ onBack }) {
                           </td>
                           <td className="px-4 py-3.5 text-center">
                             {badgeStatus(ex.status, ex.dias_para_vencer)}
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            {ex.tem_pdf ? (
+                              <div className="inline-flex items-center gap-1.5 justify-center">
+                                <button
+                                  onClick={() => handleVisualizarPdf(ex)}
+                                  disabled={visualizandoId === ex.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 hover:text-red-800 text-[11px] font-black border border-red-200 transition cursor-pointer shadow-2xs group"
+                                  title={`Visualizar laudo: ${ex.pdf_nome || 'PDF'}`}
+                                >
+                                  {visualizandoId === ex.id ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <FileText className="w-3.5 h-3.5 text-red-600 group-hover:scale-110 transition-transform" />
+                                  )}
+                                  <span>Ver PDF</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleAbrirModalPdf(ex)}
+                                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                                  title="Gerenciar / Substituir Laudo PDF"
+                                >
+                                  <UploadCloud className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleAbrirModalPdf(ex)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-violet-50 text-slate-600 hover:text-violet-700 text-[11px] font-black border border-dashed border-slate-300 hover:border-violet-300 transition cursor-pointer"
+                                title="Carregar PDF do exame"
+                              >
+                                <FileUp className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Carregar PDF</span>
+                              </button>
+                            )}
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center justify-center gap-1.5">
@@ -612,10 +754,10 @@ export default function ExamesToxicologicos({ onBack }) {
       {/* ===================================================================== */}
       {/* 5. MODAL: INSERIR / EDITAR MOTORISTA                                  */}
       {/* ===================================================================== */}
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={fecharModal} />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5 z-10 animate-fadeIn">
+      {modalAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={fecharModal} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-5 z-10 animate-fadeIn my-auto">
 
             {/* Header modal */}
             <div className="flex items-center justify-between">
@@ -680,6 +822,27 @@ export default function ExamesToxicologicos({ onBack }) {
                 />
               </div>
 
+              {editando && (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    <span className="text-xs font-bold text-slate-700">
+                      {editando.tem_pdf ? 'Laudo PDF anexado' : 'Sem laudo PDF'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fecharModal();
+                      handleAbrirModalPdf(editando);
+                    }}
+                    className="text-xs font-black text-violet-700 hover:underline cursor-pointer"
+                  >
+                    {editando.tem_pdf ? 'Gerenciar Laudo' : 'Anexar Laudo'}
+                  </button>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -703,8 +866,286 @@ export default function ExamesToxicologicos({ onBack }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+      {/* ===================================================================== */}
+      {/* 6. MODAL: GERENCIAR / CARREGAR PDF DO LAUDO                           */}
+      {/* ===================================================================== */}
+      {modalPdfExame && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={handleFecharModalPdf} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 z-10 animate-fadeIn border border-slate-100 my-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider mb-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  Laudo Toxicológico em PDF
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {modalPdfExame.nome}
+                </h3>
+                <p className="text-xs text-slate-500 font-bold">
+                  Realização: {modalPdfExame.data_exame} • Vencimento: {modalPdfExame.data_vencimento}
+                </p>
+              </div>
+              <button
+                onClick={handleFecharModalPdf}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5 stroke-[2.5]" />
+              </button>
+            </div>
+
+            {/* Se já possui PDF anexado */}
+            {modalPdfExame.tem_pdf ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+                      <FileText className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate" title={modalPdfExame.pdf_nome}>
+                        {modalPdfExame.pdf_nome || 'laudo_toxicologico.pdf'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 font-bold">
+                        {modalPdfExame.pdf_tamanho ? <span>{formatarBytes(modalPdfExame.pdf_tamanho)}</span> : null}
+                        <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3" /> Armazenado no Banco
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleRemoverPdf(modalPdfExame)}
+                    disabled={removendoPdf}
+                    className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition cursor-pointer shrink-0"
+                    title="Excluir este laudo do banco de dados"
+                  >
+                    <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => handleVisualizarPdf(modalPdfExame)}
+                    disabled={visualizandoId === modalPdfExame.id}
+                    className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                  >
+                    {visualizandoId === modalPdfExame.id ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Eye className="w-4 h-4 stroke-[2.5]" />
+                    )}
+                    Visualizar PDF
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const blob = await visualizarPdfExameApi(modalPdfExame.id, true);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = modalPdfExame.pdf_nome || `exame_${modalPdfExame.nome}.pdf`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      } catch (e) {
+                        setMensagemErro('Erro ao baixar arquivo PDF.');
+                      }
+                    }}
+                    className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs sm:text-sm transition cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    Baixar PDF
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2">
+                    Deseja substituir por um novo laudo?
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Área de Seleção / Upload de PDF */}
+            <div className="space-y-3">
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+                      setMensagemErro('Selecione apenas arquivos no formato PDF.');
+                      return;
+                    }
+                    if (file.size > 15 * 1024 * 1024) {
+                      setMensagemErro('O arquivo deve ter no máximo 15 MB.');
+                      return;
+                    }
+                    setArquivoPdfUpload(file);
+                  }
+                }}
+              />
+
+              {!arquivoPdfUpload ? (
+                <div
+                  onClick={() => pdfInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 hover:border-red-400 hover:bg-red-50/20 rounded-2xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+                    <UploadCloud className="w-6 h-6 stroke-[2]" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs sm:text-sm font-black text-slate-800">
+                      Clique para selecionar o PDF do exame
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-0.5">
+                      Suporta formato .PDF de até 15 MB
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-red-50/50 border-2 border-red-200 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-slate-900 truncate">
+                          {arquivoPdfUpload.name}
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-bold">
+                          {formatarBytes(arquivoPdfUpload.size)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArquivoPdfUpload(null);
+                        if (pdfInputRef.current) pdfInputRef.current.value = '';
+                      }}
+                      className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-500 transition cursor-pointer"
+                      title="Remover seleção"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleSalvarPdf}
+                    disabled={enviandoPdf}
+                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-xs sm:text-sm shadow-sm transition cursor-pointer disabled:opacity-60"
+                  >
+                    {enviandoPdf ? (
+                      <RefreshCw className="w-4 h-4 animate-spin stroke-[2.5]" />
+                    ) : (
+                      <Save className="w-4 h-4 stroke-[2.5]" />
+                    )}
+                    {enviandoPdf ? 'Armazenando no Banco...' : 'Salvar PDF no Banco de Dados'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={handleFecharModalPdf}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ===================================================================== */}
+      {/* 7. MODAL: VISUALIZADOR DE PDF INTEGRADO                                */}
+      {/* ===================================================================== */}
+      {modalViewerPdf && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center p-2 sm:p-4">
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" onClick={handleFecharViewerPdf} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col z-10 overflow-hidden animate-fadeIn border border-slate-200 my-auto">
+            
+            {/* Header do visualizador */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-red-600/30 border border-red-500/40 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5 text-red-400" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-black truncate">
+                    {modalViewerPdf.motorista}
+                  </h3>
+                  <p className="text-[11px] text-slate-300 font-bold truncate">
+                    {modalViewerPdf.nome}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={modalViewerPdf.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black transition"
+                  title="Abrir em nova aba do navegador"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Nova Aba</span>
+                </a>
+
+                <a
+                  href={modalViewerPdf.url}
+                  download={modalViewerPdf.nome}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black transition"
+                  title="Baixar PDF"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Baixar</span>
+                </a>
+
+                <button
+                  onClick={handleFecharViewerPdf}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer ml-1"
+                  title="Fechar visualizador"
+                >
+                  <X className="w-5 h-5 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+
+            {/* Embed do PDF */}
+            <div className="flex-1 w-full h-full bg-slate-100 p-1 sm:p-2">
+              <iframe
+                src={modalViewerPdf.url}
+                className="w-full h-full rounded-2xl border border-slate-300 bg-white"
+                title="Documento PDF"
+              />
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }

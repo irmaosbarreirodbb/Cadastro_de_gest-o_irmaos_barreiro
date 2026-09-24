@@ -1,4 +1,5 @@
 import io
+import os
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, text
 
 from app.core.database import get_db, SessionLocal
+from app.core.encryption import encrypt_bytes, decrypt_bytes
 from app.models.exame_toxicologico import ExameToxicologico
 from app.models.usuario import Usuario
 from app.api.deps import get_current_user
@@ -448,3 +450,104 @@ def verificar_vencimentos(
     """Verifica exames próximos do vencimento e dispara alerta via Brevo."""
     resultado = verificar_e_enviar_alertas(db)
     return resultado
+
+
+# ============================================================================
+# 9. UPLOAD PDF DO LAUDO — POST /exames/{exame_id}/pdf
+# ============================================================================
+
+@router.post("/{exame_id}/pdf", response_model=ExameToxicologicoOut)
+async def upload_pdf_exame(
+    exame_id: int,
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Armazena o documento PDF do exame toxicológico no banco de dados."""
+    exame = db.query(ExameToxicologico).filter(ExameToxicologico.id == exame_id).first()
+    if not exame:
+        raise HTTPException(status_code=404, detail="Exame não encontrado.")
+
+    ext = Path(arquivo.filename or "").suffix.lower()
+    if ext != ".pdf" and arquivo.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos.")
+
+    conteudo = await arquivo.read()
+    if not conteudo:
+        raise HTTPException(status_code=400, detail="O arquivo enviado está vazio.")
+    if len(conteudo) > 15 * 1024 * 1024:  # 15 MB
+        raise HTTPException(status_code=400, detail="O arquivo PDF deve ter no máximo 15 MB.")
+
+    if not conteudo.startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="O arquivo fornecido não é um documento PDF válido.")
+
+    nome_arquivo = os.path.basename(arquivo.filename or "laudo_toxicologico.pdf").replace('"', '').replace('\r', '').replace('\n', '')[:255]
+
+    exame.pdf_arquivo = encrypt_bytes(conteudo)
+    exame.pdf_nome = nome_arquivo
+    exame.pdf_content_type = "application/pdf"
+    exame.pdf_tamanho = len(conteudo)
+    exame.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(exame)
+    return exame
+
+
+# ============================================================================
+# 10. VISUALIZAR / BAIXAR PDF DO LAUDO — GET /exames/{exame_id}/pdf
+# ============================================================================
+
+@router.get("/{exame_id}/pdf")
+def obter_pdf_exame(
+    exame_id: int,
+    download: bool = Query(False, description="Se True, baixa como anexo; caso contrário, abre inline"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Retorna o laudo PDF armazenado no banco de dados para visualização ou download."""
+    exame = db.query(ExameToxicologico).filter(ExameToxicologico.id == exame_id).first()
+    if not exame:
+        raise HTTPException(status_code=404, detail="Exame não encontrado.")
+
+    if not exame.pdf_arquivo:
+        raise HTTPException(status_code=404, detail="Nenhum arquivo PDF anexado para este exame.")
+
+    pdf_bytes = decrypt_bytes(exame.pdf_arquivo)
+    disposition = "attachment" if download else "inline"
+    nome = exame.pdf_nome or f"exame_toxicologico_{exame.id}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{nome}"',
+            "X-Content-Type-Options": "nosniff"
+        }
+    )
+
+
+# ============================================================================
+# 11. REMOVER PDF DO LAUDO — DELETE /exames/{exame_id}/pdf
+# ============================================================================
+
+@router.delete("/{exame_id}/pdf", response_model=ExameToxicologicoOut)
+def remover_pdf_exame(
+    exame_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Remove o laudo PDF vinculado ao exame toxicológico."""
+    exame = db.query(ExameToxicologico).filter(ExameToxicologico.id == exame_id).first()
+    if not exame:
+        raise HTTPException(status_code=404, detail="Exame não encontrado.")
+
+    exame.pdf_arquivo = None
+    exame.pdf_nome = None
+    exame.pdf_content_type = None
+    exame.pdf_tamanho = None
+    exame.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(exame)
+    return exame

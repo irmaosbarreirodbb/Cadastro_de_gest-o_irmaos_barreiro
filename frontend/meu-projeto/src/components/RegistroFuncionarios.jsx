@@ -627,9 +627,10 @@ export default function RegistroFuncionarios({ onBack }) {
       {/* ================================================================= */}
       {/* 5. MODAL DE CADASTRO / EDIÇÃO DE FUNCIONÁRIO (NO-PRINT)            */}
       {/* ================================================================= */}
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print">
-          <div className="bg-white rounded-3xl shadow-2xl border border-zinc-200 w-full max-w-lg overflow-hidden animate-scaleUp">
+      {modalAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4 no-print">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalAberto(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-200 w-full max-w-lg overflow-hidden animate-scaleUp z-10 my-auto">
             <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Users className="w-5 h-5 text-white" />
@@ -849,7 +850,8 @@ export default function RegistroFuncionarios({ onBack }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ================================================================= */}

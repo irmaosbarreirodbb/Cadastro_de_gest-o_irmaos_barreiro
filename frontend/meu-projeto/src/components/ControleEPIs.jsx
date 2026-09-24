@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
   Package,
@@ -1791,9 +1792,10 @@ export default function ControleEPIs({ onBack }) {
       {/* ========================================================================================= */}
       {/* MODAL: CADASTRO / EDIÇÃO MANUAL DE EPI                                                    */}
       {/* ========================================================================================= */}
-      {modalEpiAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full border border-zinc-200 shadow-2xl space-y-4">
+      {modalEpiAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalEpiAberto(false)} />
+          <div className="relative bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full border border-zinc-200 shadow-2xl space-y-4 animate-fadeIn z-10 my-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
               <h3 className="text-base sm:text-lg font-bold text-zinc-900">
                 {epiEditando ? 'Editar Item da Planilha' : 'Novo EPI na Planilha'}
@@ -1935,18 +1937,17 @@ export default function ControleEPIs({ onBack }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================================= */}
       {/* MODAL: CADASTRAR NOVO FUNCIONÁRIO NO MÓDULO DE EPIs                                       */}
       {/* ========================================================================================= */}
-      {modalFuncionarioAberto && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn"
-          onClick={(e) => { if (e.target === e.currentTarget) setModalFuncionarioAberto(false); }}
-        >
-          <div className="bg-white rounded-3xl shadow-2xl border border-zinc-200 w-full max-w-lg p-6 sm:p-8 space-y-5">
+      {modalFuncionarioAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalFuncionarioAberto(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl border border-zinc-200 w-full max-w-lg p-6 sm:p-8 space-y-5 animate-fadeIn z-10 my-auto">
             {/* Header do Modal */}
             <div className="flex items-center justify-between">
               <div>
@@ -2045,7 +2046,8 @@ export default function ControleEPIs({ onBack }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
