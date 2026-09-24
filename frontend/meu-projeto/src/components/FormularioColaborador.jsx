@@ -24,7 +24,9 @@ import {
   Clock,
   QrCode,
   FileCheck,
-  Calendar
+  Calendar,
+  Car,
+  FlaskConical
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
@@ -117,6 +119,12 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
     telefone: '',
     dataNascimento: '',
     rg: '',
+
+    // Habilitação (CNH) e Exame Toxicológico
+    cnhNumero: '',
+    cnhValidade: '',
+    exameToxicologicoEmissao: '',
+    exameToxicologicoVencimento: '',
 
     // Etapa 1: Dados Empresariais (Pessoa Jurídica / Alvará de Funcionamento)
     razaoSocial: '',
@@ -653,6 +661,18 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
     return `${clean.slice(0, -1)}-${clean.slice(-1)}`;
   }
 
+  function formatDataBR(val) {
+    if (!val) return '—';
+    if (typeof val === 'string' && val.includes('-')) {
+      const parts = val.split('-');
+      if (parts.length === 3) {
+        const [y, m, d] = parts;
+        return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+      }
+    }
+    return val;
+  }
+
   // Validação por campo
   function validateField(field, value) {
     let errorMsg = '';
@@ -1015,6 +1035,10 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
           cpf: formData.tipoPessoa === 'juridica' ? formData.cnpj : formData.cpf,
           rg: formData.tipoPessoa === 'juridica' ? (formData.inscricaoEstadual || 'ISENTO') : formData.rg,
           data_nascimento: formData.dataNascimento,
+          cnh_numero: formData.cnhNumero || null,
+          cnh_validade: formData.cnhValidade || null,
+          exame_toxicologico_emissao: formData.exameToxicologicoEmissao || null,
+          exame_toxicologico_vencimento: formData.exameToxicologicoVencimento || null,
           email: formData.email,
           telefone: formData.telefone,
           cep: formData.cep,
@@ -1481,6 +1505,27 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                   <div className="bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-200/80">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase block">E-mail</span>
                     <span className="font-bold text-zinc-900 truncate block">{formData.email || 'Não informado'}</span>
+                  </div>
+
+                  {/* CNH & Exame Toxicológico no PDF */}
+                  <div className="bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-200/80">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase block">Nº da CNH</span>
+                    <span className="font-bold text-zinc-900 font-mono">{formData.cnhNumero || '—'}</span>
+                  </div>
+
+                  <div className="bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-200/80">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase block">Validade da CNH</span>
+                    <span className="font-bold text-zinc-900">{formatDataBR(formData.cnhValidade)}</span>
+                  </div>
+
+                  <div className="bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-200/80">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase block">Toxicológico (Emissão)</span>
+                    <span className="font-bold text-zinc-900">{formatDataBR(formData.exameToxicologicoEmissao)}</span>
+                  </div>
+
+                  <div className="bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-200/80">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase block">Toxicológico (Vencimento)</span>
+                    <span className="font-bold text-zinc-900">{formatDataBR(formData.exameToxicologicoVencimento)}</span>
                   </div>
                 </div>
               </div>
@@ -1995,6 +2040,89 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                 <span>{errors.email}</span>
                               </p>
                             )}
+                          </div>
+
+                          {/* SEÇÃO ESPECIAL: HABILITAÇÃO & EXAME TOXICOLÓGICO */}
+                          <div className="sm:col-span-2 mt-2 pt-4 border-t border-zinc-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 border border-red-200/60 flex items-center justify-center shrink-0">
+                                <Car className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black uppercase text-zinc-900 tracking-wider">
+                                  Habilitação (CNH) & Exame Toxicológico
+                                </h4>
+                                <p className="text-[11px] text-zinc-500">
+                                  Informações cadastrais para motoristas e funções operacionais de transporte
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-zinc-50/80 p-4 rounded-2xl border border-zinc-200">
+                              {/* Número da CNH */}
+                              <div>
+                                <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
+                                  <span>Número da CNH</span>
+                                  <span className="text-zinc-400 font-medium text-[10px] lowercase">(se aplicável)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={formData.cnhNumero}
+                                  onChange={(e) => handleChange('cnhNumero', e.target.value.replace(/\D/g, '').slice(0, 11))}
+                                  placeholder="00000000000 (11 dígitos)"
+                                  maxLength={11}
+                                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 hover:border-zinc-400 focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-zinc-900 font-mono font-medium placeholder:text-zinc-400 placeholder:font-normal text-sm transition-all outline-none bg-white"
+                                />
+                              </div>
+
+                              {/* Validade da CNH */}
+                              <div>
+                                <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
+                                  <span>Validade da CNH</span>
+                                  <span className="text-zinc-400 font-medium text-[10px] lowercase">(se aplicável)</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={formData.cnhValidade}
+                                  onChange={(e) => handleChange('cnhValidade', e.target.value)}
+                                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 hover:border-zinc-400 focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-zinc-900 font-medium text-sm transition-all outline-none bg-white"
+                                />
+                              </div>
+
+                              {/* Emissão do Exame Toxicológico */}
+                              <div>
+                                <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5">
+                                    <FlaskConical className="w-3.5 h-3.5 text-violet-600" />
+                                    <span>Exame Toxicológico: Emissão</span>
+                                  </span>
+                                  <span className="text-zinc-400 font-medium text-[10px] lowercase">(se aplicável)</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={formData.exameToxicologicoEmissao}
+                                  onChange={(e) => handleChange('exameToxicologicoEmissao', e.target.value)}
+                                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 hover:border-zinc-400 focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-zinc-900 font-medium text-sm transition-all outline-none bg-white"
+                                />
+                              </div>
+
+                              {/* Vencimento do Exame Toxicológico */}
+                              <div>
+                                <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-red-600" />
+                                    <span>Exame Toxicológico: Vencimento</span>
+                                  </span>
+                                  <span className="text-zinc-400 font-medium text-[10px] lowercase">(se aplicável)</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  value={formData.exameToxicologicoVencimento}
+                                  onChange={(e) => handleChange('exameToxicologicoVencimento', e.target.value)}
+                                  className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 hover:border-zinc-400 focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-zinc-900 font-medium text-sm transition-all outline-none bg-white"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ) : (

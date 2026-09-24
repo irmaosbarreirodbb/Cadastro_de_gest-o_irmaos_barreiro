@@ -4,10 +4,12 @@ import os
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.core.database import get_db
 from app.core.encryption import encrypt_val, decrypt_val, encrypt_bytes, decrypt_bytes
 from app.models.colaborador import ColaboradorCadastro
 from app.models.documento_colaborador import DocumentoColaborador
+from app.models.exame_toxicologico import ExameToxicologico
 from app.models.usuario import Usuario
 from app.schemas.colaborador import ColaboradorCreate, ColaboradorOut, StatusUpdate
 from app.services.protocolo import gerar_protocolo
@@ -93,6 +95,39 @@ def criar_cadastro_colaborador(
     db.add(colaborador)
     db.commit()
     db.refresh(colaborador)
+
+    # Sincroniza com o módulo de exames toxicológicos se informado
+    if dados.exame_toxicologico_emissao and dados.exame_toxicologico_vencimento:
+        try:
+            nome_norm = (dados.nome_completo or "").strip()
+            def _norm_data(d_str):
+                if d_str and '-' in d_str:
+                    parts = d_str.split('-')
+                    if len(parts) == 3:
+                        return f"{parts[2]}/{parts[1]}/{parts[0]}"
+                return d_str or ""
+
+            dt_ex = _norm_data(dados.exame_toxicologico_emissao)
+            dt_vc = _norm_data(dados.exame_toxicologico_vencimento)
+
+            if nome_norm and dt_ex and dt_vc:
+                existente_exame = db.query(ExameToxicologico).filter(
+                    func.upper(ExameToxicologico.nome) == nome_norm.upper()
+                ).first()
+                if existente_exame:
+                    existente_exame.data_exame = dt_ex
+                    existente_exame.data_vencimento = dt_vc
+                else:
+                    novo_exame = ExameToxicologico(
+                        nome=nome_norm,
+                        data_exame=dt_ex,
+                        data_vencimento=dt_vc
+                    )
+                    db.add(novo_exame)
+                db.commit()
+        except Exception:
+            db.rollback()
+
     return _descriptografar_colaborador(colaborador)
 
 @router.get("", response_model=List[ColaboradorOut])

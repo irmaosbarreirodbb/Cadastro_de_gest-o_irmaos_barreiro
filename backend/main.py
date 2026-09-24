@@ -45,6 +45,10 @@ def init_db():
                 "ALTER TABLE recibos ALTER COLUMN cpf_diarista TYPE TEXT;",
                 "ALTER TABLE recibos ALTER COLUMN chave_pix TYPE TEXT;",
                 "ALTER TABLE funcionarios_base ADD COLUMN IF NOT EXISTS data_entrada VARCHAR(20);",
+                "ALTER TABLE pessoas_fisicas_cadastros ADD COLUMN IF NOT EXISTS cnh_numero VARCHAR(50);",
+                "ALTER TABLE pessoas_fisicas_cadastros ADD COLUMN IF NOT EXISTS cnh_validade VARCHAR(20);",
+                "ALTER TABLE pessoas_fisicas_cadastros ADD COLUMN IF NOT EXISTS exame_toxicologico_emissao VARCHAR(20);",
+                "ALTER TABLE pessoas_fisicas_cadastros ADD COLUMN IF NOT EXISTS exame_toxicologico_vencimento VARCHAR(20);",
                 """
                 DO $$
                 BEGIN
