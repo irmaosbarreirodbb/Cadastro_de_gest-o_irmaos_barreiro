@@ -23,6 +23,9 @@ class ExameToxicologicoOut(ExameToxicologicoBase):
     id: int
     status: str
     dias_para_vencer: int
+    tem_pdf: bool = False
+    pdf_nome: Optional[str] = None
+    pdf_tamanho: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

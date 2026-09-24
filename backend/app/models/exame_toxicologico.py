@@ -1,13 +1,13 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, LargeBinary
 from app.core.database import Base
 
 
 class ExameToxicologico(Base):
     """
     Modelo para Controle de Exames Toxicológicos de Motoristas.
-    Campos: id, nome do motorista, data do exame, data de vencimento.
+    Campos: id, nome do motorista, data do exame, data de vencimento, pdf_arquivo, pdf_nome.
     """
     __tablename__ = "exames_toxicologicos"
 
@@ -16,8 +16,18 @@ class ExameToxicologico(Base):
     data_exame = Column(String(30), nullable=False)                  # Data de realização (DD/MM/AAAA)
     data_vencimento = Column(String(30), nullable=False)             # Data de vencimento (DD/MM/AAAA)
 
+    # Documento PDF do exame toxicológico (armazenado no banco)
+    pdf_arquivo = Column(LargeBinary, nullable=True)
+    pdf_nome = Column(String(255), nullable=True)
+    pdf_content_type = Column(String(100), nullable=True)
+    pdf_tamanho = Column(Integer, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    @property
+    def tem_pdf(self) -> bool:
+        return self.pdf_arquivo is not None
 
     @staticmethod
     def hoje_local():

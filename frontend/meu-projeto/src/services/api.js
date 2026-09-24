@@ -785,3 +785,41 @@ export async function verificarVencimentosExamesApi() {
   }
   return await res.json();
 }
+
+export async function uploadPdfExameApi(exameId, file) {
+  const formData = new FormData();
+  formData.append('arquivo', file);
+  const res = await fetch(`${API_BASE_URL}/exames/${exameId}/pdf`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao enviar PDF do exame');
+  }
+  return await res.json();
+}
+
+export async function visualizarPdfExameApi(exameId, download = false) {
+  const res = await fetch(`${API_BASE_URL}/exames/${exameId}/pdf?download=${download}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao carregar PDF do exame');
+  }
+  return await res.blob();
+}
+
+export async function removerPdfExameApi(exameId) {
+  const res = await fetch(`${API_BASE_URL}/exames/${exameId}/pdf`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao remover PDF do exame');
+  }
+  return await res.json();
+}

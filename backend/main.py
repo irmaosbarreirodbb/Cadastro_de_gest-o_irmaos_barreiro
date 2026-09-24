@@ -132,6 +132,10 @@ def init_db():
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """,
+                "ALTER TABLE exames_toxicologicos ADD COLUMN IF NOT EXISTS pdf_arquivo BYTEA;",
+                "ALTER TABLE exames_toxicologicos ADD COLUMN IF NOT EXISTS pdf_nome VARCHAR(255);",
+                "ALTER TABLE exames_toxicologicos ADD COLUMN IF NOT EXISTS pdf_content_type VARCHAR(100);",
+                "ALTER TABLE exames_toxicologicos ADD COLUMN IF NOT EXISTS pdf_tamanho INTEGER;",
                 # Tabela de controle: evita envio duplicado de alertas de e-mail
                 """
                 CREATE TABLE IF NOT EXISTS alertas_exames_enviados (

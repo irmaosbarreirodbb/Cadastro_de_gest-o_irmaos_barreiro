@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import { toJpeg } from 'html-to-image';
 import Logo from './Logo';
@@ -253,8 +254,8 @@ export default function RelatorioMensalModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] overflow-y-auto bg-zinc-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
       <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden my-6 flex flex-col max-h-[94vh]">
         
         {/* ================================================================= */}
@@ -601,6 +602,7 @@ export default function RelatorioMensalModal({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

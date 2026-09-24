@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import { loginApi } from '../services/api';
@@ -94,9 +95,9 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, isLoginOpe
       </header>
 
       {/* Modal de Acesso - Entrar no Sistema */}
-      {isLoginOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 relative">
+      {isLoginOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 relative my-auto">
             
             <button
               onClick={handleClose}
@@ -182,7 +183,8 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, isLoginOpe
             </form>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
