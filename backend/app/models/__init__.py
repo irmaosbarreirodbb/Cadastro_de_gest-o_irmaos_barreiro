@@ -11,6 +11,7 @@ from app.models.permissao_trabalho import PermissaoTrabalho
 from app.models.epi import EPI, EntregaEPI
 from app.models.funcionario_epi import FuncionarioEPI
 from app.models.exame_toxicologico import ExameToxicologico
+from app.models.cnh import CNHFuncionario, AlertaCNHEnviado
 
 __all__ = [
     "Usuario", 
@@ -26,5 +27,7 @@ __all__ = [
     "EPI",
     "EntregaEPI",
     "FuncionarioEPI",
-    "ExameToxicologico"
+    "ExameToxicologico",
+    "CNHFuncionario",
+    "AlertaCNHEnviado"
 ]

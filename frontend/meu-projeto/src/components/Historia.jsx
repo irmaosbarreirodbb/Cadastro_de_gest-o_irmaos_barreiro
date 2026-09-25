@@ -51,6 +51,12 @@ const modules = [
     desc: 'Relacao de motoristas, acompanhamento dos vencimentos, alertas automaticos e exportacao em PDF.',
     action: 'Acessar exames',
   },
+  {
+    num: '09',
+    title: 'Controle de CNH',
+    desc: 'Frota e Adm: acompanhamento de validades, PDFs criptografados, e-mails de alerta e relatório oficial.',
+    action: 'Acessar CNHs',
+  },
 ];
 
 export default function Historia({ isLoggedIn, onOpenLogin }) {
@@ -114,7 +120,8 @@ export default function Historia({ isLoggedIn, onOpenLogin }) {
           <span className="font-mono text-[10px] font-semibold text-white/60 uppercase tracking-wider">FLUXO OPERACIONAL</span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Grid de módulos (3x3 perfeitamente balanceado para os 9 módulos) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {modules.map(item => (
             <button
               key={item.num}

@@ -21,7 +21,9 @@ from app.models import (
     EPI,
     EntregaEPI,
     FuncionarioEPI,
-    ExameToxicologico
+    ExameToxicologico,
+    CNHFuncionario,
+    AlertaCNHEnviado
 )
 
 # Inicializa as tabelas no banco de dados PostgreSQL (Barreiro) automaticamente na inicialização
@@ -147,7 +149,36 @@ def init_db():
                     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS idx_alertas_exame_data ON alertas_exames_enviados (exame_id, data_envio);"
+                "CREATE INDEX IF NOT EXISTS idx_alertas_exame_data ON alertas_exames_enviados (exame_id, data_envio);",
+                """
+                CREATE TABLE IF NOT EXISTS cnhs_funcionarios (
+                    id SERIAL PRIMARY KEY,
+                    setor VARCHAR(50) NOT NULL DEFAULT 'FROTA',
+                    nome VARCHAR(150) NOT NULL,
+                    cnh_numero VARCHAR(255),
+                    cnh_validade VARCHAR(30) NOT NULL,
+                    observacao VARCHAR(255),
+                    pdf_arquivo BYTEA,
+                    pdf_nome VARCHAR(255),
+                    pdf_content_type VARCHAR(100),
+                    pdf_tamanho INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_cnhs_setor_nome ON cnhs_funcionarios (setor, nome);",
+                """
+                CREATE TABLE IF NOT EXISTS alertas_cnh_enviados (
+                    id             SERIAL PRIMARY KEY,
+                    cnh_id         INTEGER NOT NULL,
+                    nome_motorista VARCHAR(150) NOT NULL,
+                    setor          VARCHAR(50) NOT NULL DEFAULT 'FROTA',
+                    data_envio     DATE NOT NULL DEFAULT CURRENT_DATE,
+                    tipo           VARCHAR(20) NOT NULL DEFAULT 'VENCENDO',
+                    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_alertas_cnh_data ON alertas_cnh_enviados (cnh_id, data_envio);"
             ]
             for sql in migration_sqls:
                 try:
@@ -279,6 +310,90 @@ _thread_alertas = threading.Thread(
 )
 _thread_alertas.start()
 print("✅ Thread de alertas automáticos de exames toxicológicos registrada.")
+
+
+def _scheduler_alertas_cnh():
+    """
+    Thread daemon com scheduler diário preciso às 08:00 para CNHs.
+    Sistema anti-duplicata persistente via tabela alertas_cnh_enviados.
+    """
+    import datetime as _dt
+    from app.core.database import SessionLocal as _SessionLocal
+    from app.services.cnh_email_service import verificar_e_enviar_alertas_cnh
+    fuso_horario = ZoneInfo("America/Sao_Paulo")
+
+    # Aguarda 35s após o boot
+    _time.sleep(35)
+    print("🔔 Scheduler de CNH iniciado.")
+    primeira_verificacao = True
+
+    while True:
+        agora = _dt.datetime.now(fuso_horario)
+
+        if primeira_verificacao:
+            espera_seg = 0
+            primeira_verificacao = False
+            print("⏰ Scheduler CNH: verificação inicial após o boot")
+        else:
+            proximo_disparo = agora.replace(hour=8, minute=0, second=0, microsecond=0)
+            if agora >= proximo_disparo:
+                proximo_disparo += _dt.timedelta(days=1)
+
+            espera_seg = (proximo_disparo - agora).total_seconds()
+            horas = int(espera_seg // 3600)
+            minutos = int((espera_seg % 3600) // 60)
+            print(
+                f"⏰ Scheduler CNH: próximo disparo em "
+                f"{horas}h {minutos}min "
+                f"({proximo_disparo.strftime('%d/%m/%Y às %H:%M')})"
+            )
+
+        _time.sleep(espera_seg)
+
+        agora_execucao = _dt.datetime.now(fuso_horario)
+        print(f"\n🚀 Scheduler CNH: iniciando verificação às {agora_execucao.strftime('%H:%M:%S')} de {agora_execucao.strftime('%d/%m/%Y')}")
+        tentativas = 0
+        while tentativas < 3:
+            db = None
+            try:
+                db = _SessionLocal()
+                resultado = verificar_e_enviar_alertas_cnh(db)
+
+                total = resultado.get("total_alertas", 0)
+                enviado = resultado.get("enviado", False)
+                mensagem = resultado.get("mensagem", "concluído.")
+                funcionarios = resultado.get("funcionarios", [])
+
+                if total > 0 and enviado:
+                    print(f"📧 E-mail de alerta CNH enviado! {total} condutor(es): {', '.join(funcionarios)}")
+                elif total > 0 and not enviado:
+                    print(f"⚠️ Alerta CNH detectado mas falha no envio: {mensagem}")
+                else:
+                    print(f"📭 Nenhum alerta CNH necessário hoje.")
+                break
+
+            except Exception as exc:
+                tentativas += 1
+                print(f"❌ Scheduler CNH — erro (tentativa {tentativas}/3): {exc}")
+                if tentativas < 3:
+                    _time.sleep(300)
+            finally:
+                if db:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+        print(f"✅ Ciclo do scheduler CNH encerrado em {_dt.datetime.now(fuso_horario).strftime('%H:%M:%S')}\n")
+
+
+_thread_alertas_cnh = threading.Thread(
+    target=_scheduler_alertas_cnh,
+    daemon=True,
+    name="AlertasCNH"
+)
+_thread_alertas_cnh.start()
+print("✅ Thread de alertas automáticos de CNH registrada.")
 
 # Desabilita a interface Swagger (/docs) e ReDoc (/redoc) em produção
 # para não expor a estrutura completa da API publicamente.

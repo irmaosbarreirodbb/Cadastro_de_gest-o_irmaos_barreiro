@@ -823,3 +823,138 @@ export async function removerPdfExameApi(exameId) {
   }
   return await res.json();
 }
+
+// ==========================================
+// MÓDULO DE CONTROLE DE CNH (FROTA E ADM)
+// ==========================================
+
+export async function getCNHsApi({ busca = '', setor = '', status = '' } = {}) {
+  let url = `${API_BASE_URL}/cnhs?`;
+  const params = new URLSearchParams();
+  if (busca) params.append('busca', busca);
+  if (setor) params.append('setor', setor);
+  if (status) params.append('status', status);
+  url += params.toString();
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Erro ao carregar lista de CNHs');
+  return await res.json();
+}
+
+export async function createCNHApi(data) {
+  const res = await fetch(`${API_BASE_URL}/cnhs`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao cadastrar CNH');
+  }
+  return await res.json();
+}
+
+export async function updateCNHApi(id, data) {
+  const res = await fetch(`${API_BASE_URL}/cnhs/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao atualizar CNH');
+  }
+  return await res.json();
+}
+
+export async function deleteCNHApi(id) {
+  const res = await fetch(`${API_BASE_URL}/cnhs/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('Erro ao excluir registro de CNH');
+  return true;
+}
+
+export async function importarPlanilhaCNHApi(file, setor = 'FROTA') {
+  const formData = new FormData();
+  formData.append('file', file);
+  let url = `${API_BASE_URL}/cnhs/importar-planilha`;
+  if (setor) {
+    url += `?setor=${encodeURIComponent(setor)}`;
+  }
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao importar planilha de CNH');
+  }
+  return await res.json();
+}
+
+export async function exportarPdfCNHApi(setor = '') {
+  let url = `${API_BASE_URL}/cnhs/exportar-pdf`;
+  if (setor) {
+    url += `?setor=${encodeURIComponent(setor)}`;
+  }
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao gerar PDF de CNH');
+  }
+  return await res.blob();
+}
+
+export async function verificarVencimentosCNHApi() {
+  const res = await fetch(`${API_BASE_URL}/cnhs/verificar-vencimentos`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao verificar vencimentos de CNH');
+  }
+  return await res.json();
+}
+
+export async function uploadPdfCNHApi(cnhId, file) {
+  const formData = new FormData();
+  formData.append('arquivo', file);
+  const res = await fetch(`${API_BASE_URL}/cnhs/${cnhId}/pdf`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao enviar documento PDF da CNH');
+  }
+  return await res.json();
+}
+
+export async function visualizarPdfCNHApi(cnhId, download = false) {
+  const res = await fetch(`${API_BASE_URL}/cnhs/${cnhId}/pdf?download=${download}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao carregar PDF da CNH');
+  }
+  return await res.blob();
+}
+
+export async function removerPdfCNHApi(cnhId) {
+  const res = await fetch(`${API_BASE_URL}/cnhs/${cnhId}/pdf`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Erro ao remover PDF da CNH');
+  }
+  return await res.json();
+}
