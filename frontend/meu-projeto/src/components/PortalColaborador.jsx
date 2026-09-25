@@ -10,6 +10,7 @@ import RegistroFuncionarios from './RegistroFuncionarios';
 import PermissaoTrabalhos from './PermissaoTrabalhos';
 import ControleEPIs from './ControleEPIs';
 import ExamesToxicologicos from './ExamesToxicologicos';
+import ControleCNH from './ControleCNH';
 import Footer from './Footer';
 import { 
   getDiaristasApi, 
@@ -30,7 +31,8 @@ import {
   Briefcase,
   ShieldAlert,
   ShieldCheck,
-  FlaskConical
+  FlaskConical,
+  CreditCard
 } from 'lucide-react';
 
 export default function PortalColaborador({ user, onLogout }) {
@@ -322,8 +324,8 @@ export default function PortalColaborador({ user, onLogout }) {
                     </p>
                   </div>
 
-                  {/* Resumo Breve das Etapas / Módulos */}
-                  <div className="pt-4 border-t border-white/20 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  {/* Resumo Breve das Etapas / Módulos (3x3 perfeitamente balanceado para os 9 módulos) */}
+                  <div className="pt-4 border-t border-white/20 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                     <div className="bg-white/10 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 space-y-1">
                       <span className="font-extrabold text-white uppercase flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-red-200" />
@@ -403,12 +405,22 @@ export default function PortalColaborador({ user, onLogout }) {
                         Controle de vencimentos, alertas automáticos por e-mail e exportação em PDF.
                       </p>
                     </div>
+
+                    <div className="bg-white/10 rounded-2xl p-3.5 backdrop-blur-sm border border-white/10 space-y-1">
+                      <span className="font-extrabold text-white uppercase flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-amber-300" />
+                        9. Controle de CNH
+                      </span>
+                      <p className="text-red-100/90 text-[11px] leading-relaxed">
+                        Frota e Adm: vencimentos, upload de PDF, e-mails de alerta e relatório oficial.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* GRID DOS BOTÕES PRINCIPAIS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
+              {/* GRID DOS BOTÕES PRINCIPAIS (3x3 com 9 módulos perfeitamente distribuídos) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
                 
                 {/* BOTÃO 1: RELATÓRIO COM DADOS INDIVIDUAIS */}
                 <button
@@ -605,6 +617,30 @@ export default function PortalColaborador({ user, onLogout }) {
                   </div>
                 </button>
 
+                {/* BOTÃO 9: CONTROLE DE CNH (FROTA E ADM) */}
+                <button
+                  id="btn-controle-cnh"
+                  onClick={() => setActiveModule('cnh')}
+                  className="group bg-white hover:bg-amber-50/50 rounded-3xl p-4 sm:p-5 border border-zinc-200 shadow-xl hover:shadow-2xl hover:border-amber-500/50 transition-all duration-200 flex flex-col justify-between text-left cursor-pointer min-h-[210px]"
+                >
+                  <div className="space-y-3">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-50 group-hover:bg-amber-600 text-amber-600 group-hover:text-white flex items-center justify-center transition-colors">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-sm sm:text-base font-black text-zinc-900 group-hover:text-amber-600 transition-colors leading-snug">
+                      Controle de CNH
+                    </h2>
+                    <p className="text-xs text-zinc-500 line-clamp-2">
+                      Frota e Adm: vencimentos, upload de PDF, e-mails de alerta e relatório impresso.
+                    </p>
+                  </div>
+
+                  <div className="pt-3 flex items-center gap-1.5 text-xs font-bold text-amber-600">
+                    <span>Acessar CNHs</span>
+                    <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
+
               </div>
             </div>
           )}
@@ -704,6 +740,15 @@ export default function PortalColaborador({ user, onLogout }) {
           {/* ========================================================= */}
           {activeModule === 'exames' && (
             <ExamesToxicologicos
+              onBack={() => setActiveModule('hub')}
+            />
+          )}
+
+          {/* ========================================================= */}
+          {/* 11. MÓDULO CONTROLE DE CNH (FROTA E ADMINISTRAÇÃO)         */}
+          {/* ========================================================= */}
+          {activeModule === 'cnh' && (
+            <ControleCNH
               onBack={() => setActiveModule('hub')}
             />
           )}
