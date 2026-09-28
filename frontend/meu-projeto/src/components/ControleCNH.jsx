@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CreditCard,
   Plus,
@@ -802,9 +803,10 @@ export default function ControleCNH({ onBack }) {
       </div>
 
       {/* ── MODAL DE CADASTRO / EDIÇÃO ── */}
-      {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-xl border border-zinc-200 space-y-5">
+      {modalAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={fecharModal} />
+          <div className="relative bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-zinc-200 space-y-5 z-10 animate-fadeIn my-auto">
             <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -952,13 +954,15 @@ export default function ControleCNH({ onBack }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL DE IMPORTAÇÃO DE PLANILHA ── */}
-      {modalImportarAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-xl border border-zinc-200 space-y-5">
+      {modalImportarAberto && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={fecharModalImportar} />
+          <div className="relative bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-zinc-200 space-y-5 z-10 animate-fadeIn my-auto">
             <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
@@ -1094,9 +1098,10 @@ export default function ControleCNH({ onBack }) {
       )}
 
       {/* ── MODAL DE UPLOAD / GERENCIAMENTO DO PDF DA CNH ── */}
-      {modalPdfCNH && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/50 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-zinc-200 space-y-5">
+      {modalPdfCNH && createPortal(
+        <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={fecharModalPdf} />
+          <div className="relative bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-zinc-200 space-y-5 z-10 animate-fadeIn my-auto">
             <div className="flex items-center justify-between pb-3.5 border-b border-zinc-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -1201,13 +1206,14 @@ export default function ControleCNH({ onBack }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL VISUALIZADOR INLINE DE PDF ── */}
-      {modalViewerPdf && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-zinc-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl border border-zinc-200 overflow-hidden">
+      {modalViewerPdf && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-sm">
+          <div className="relative bg-white rounded-3xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl border border-zinc-200 overflow-hidden z-10 animate-fadeIn">
             {/* Topo do Visualizador */}
             <div className="flex items-center justify-between p-3.5 px-5 border-b border-zinc-200 bg-zinc-50">
               <div className="flex items-center gap-3">
@@ -1254,7 +1260,8 @@ export default function ControleCNH({ onBack }) {
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

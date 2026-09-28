@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import { toCanvas } from 'html-to-image';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi } from '../services/api';
+import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi, consultarMotoristaDadosApi } from '../services/api';
 import DocumentosPessoaFisica from './DocumentosPessoaFisica';
 import DocumentosPessoaJuridica from './DocumentosPessoaJuridica';
 
@@ -26,7 +26,11 @@ import {
   FileCheck,
   Calendar,
   Car,
-  FlaskConical
+  FlaskConical,
+  Database,
+  Loader2,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
@@ -102,6 +106,8 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [isCompleted, setIsCompleted] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
+  const [buscandoDadosMotorista, setBuscandoDadosMotorista] = useState(false);
+  const [dadosMotoristaStatus, setDadosMotoristaStatus] = useState(null); // { tipo: 'sucesso' | 'info', mensagem: '' }
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [colaboradorId, setColaboradorId] = useState('');
   const [rascunhoCarregado, setRascunhoCarregado] = useState(false);
@@ -777,9 +783,70 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
     return !errorMsg;
   }
 
+  // Busca automática e discreta de dados de CNH e Exame Toxicológico no banco
+  async function handleBuscarDadosMotorista(nomeManual) {
+    const nomeBusca = (nomeManual !== undefined ? nomeManual : formData.nome || '').trim();
+    if (nomeBusca.length < 3) return;
+
+    setBuscandoDadosMotorista(true);
+    try {
+      const res = await consultarMotoristaDadosApi(nomeBusca);
+      if (res && res.encontrado) {
+        setFormData((prev) => {
+          const atualizado = { ...prev };
+          if (res.cnh) {
+            if (res.cnh.cnh_numero) {
+              atualizado.cnhNumero = res.cnh.cnh_numero;
+            }
+            if (res.cnh.cnh_validade) {
+              atualizado.cnhValidade = res.cnh.cnh_validade;
+            }
+          }
+          if (res.exame) {
+            if (res.exame.data_exame) {
+              atualizado.exameToxicologicoEmissao = res.exame.data_exame;
+            }
+            if (res.exame.data_vencimento) {
+              atualizado.exameToxicologicoVencimento = res.exame.data_vencimento;
+            }
+          }
+          return atualizado;
+        });
+
+        const msg = res.encontrado_cnh && res.encontrado_exame
+          ? 'CNH e Exame Toxicológico localizados no banco e preenchidos automaticamente.'
+          : res.encontrado_cnh
+          ? 'Dados de CNH localizados no banco e preenchidos automaticamente.'
+          : 'Dados de Exame Toxicológico localizados no banco e preenchidos automaticamente.';
+
+        setDadosMotoristaStatus({ tipo: 'sucesso', mensagem: msg });
+        setTimeout(() => {
+          setDadosMotoristaStatus(null);
+        }, 7000);
+      } else if (nomeManual !== undefined) {
+        setDadosMotoristaStatus({ tipo: 'info', mensagem: 'Nenhum registro de CNH ou Exame Toxicológico localizado no banco para este nome.' });
+        setTimeout(() => {
+          setDadosMotoristaStatus(null);
+        }, 5000);
+      }
+    } catch (err) {
+      console.warn('Consulta de dados de motorista falhou silenciosamente:', err);
+    } finally {
+      setBuscandoDadosMotorista(false);
+    }
+  }
+
   function handleBlur(field) {
     setTouched((prev) => ({ ...prev, [field]: true }));
     validateField(field, formData[field]);
+
+    if (field === 'nome' && formData.tipoPessoa === 'fisica') {
+      const nomeVal = (formData.nome || '').trim();
+      // Auto-busca discreta caso os campos de CNH ou Toxicológico ainda não estejam preenchidos
+      if (nomeVal.length >= 3 && (!formData.cnhNumero || !formData.exameToxicologicoVencimento)) {
+        handleBuscarDadosMotorista(nomeVal);
+      }
+    }
   }
 
   // Busca de CEP automática via ViaCEP
@@ -1915,8 +1982,13 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                       {formData.tipoPessoa === 'fisica' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fadeIn">
                           <div className="sm:col-span-2">
-                            <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5">
-                              Nome Completo <span className="text-red-600 font-black">*</span>
+                            <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
+                              <span>Nome Completo <span className="text-red-600 font-black">*</span></span>
+                              {buscandoDadosMotorista && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium lowercase tracking-normal">
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin text-red-600" /> buscando CNH / Toxicológico no banco...
+                                </span>
+                              )}
                             </label>
                             <input
                               type="text"
@@ -2044,19 +2116,67 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
 
                           {/* SEÇÃO ESPECIAL: HABILITAÇÃO & EXAME TOXICOLÓGICO */}
                           <div className="sm:col-span-2 mt-2 pt-4 border-t border-zinc-200">
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 border border-red-200/60 flex items-center justify-center shrink-0">
-                                <Car className="w-4 h-4" />
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 border border-red-200/60 flex items-center justify-center shrink-0">
+                                  <Car className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-black uppercase text-zinc-900 tracking-wider">
+                                      Habilitação (CNH) & Exame Toxicológico
+                                    </h4>
+                                    {buscandoDadosMotorista && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 font-medium animate-pulse">
+                                        <Loader2 className="w-3 h-3 animate-spin text-zinc-400" />
+                                        <span>Buscando registros...</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-zinc-500">
+                                    Informações cadastrais para motoristas e funções operacionais de transporte
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <h4 className="text-xs font-black uppercase text-zinc-900 tracking-wider">
-                                  Habilitação (CNH) & Exame Toxicológico
-                                </h4>
-                                <p className="text-[11px] text-zinc-500">
-                                  Informações cadastrais para motoristas e funções operacionais de transporte
-                                </p>
+
+                              {/* Botão de busca discreta no banco de dados */}
+                              <div className="flex items-center gap-2 self-start sm:self-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => handleBuscarDadosMotorista()}
+                                  disabled={buscandoDadosMotorista || !formData.nome || formData.nome.trim().length < 3}
+                                  title="Buscar CNH e Exame Toxicológico existentes no banco de dados para este nome"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-red-700 bg-white hover:bg-red-50/60 border border-zinc-200 hover:border-red-200 transition-all shadow-xs disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                                >
+                                  {buscandoDadosMotorista ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                                  ) : (
+                                    <Database className="w-3.5 h-3.5 text-red-600" />
+                                  )}
+                                  <span>Buscar no Banco</span>
+                                </button>
                               </div>
                             </div>
+
+                            {/* Feedback discreto quando dados são encontrados ou mensagem informativa */}
+                            {dadosMotoristaStatus && (
+                              <div
+                                className={`mb-3 px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition-all animate-fadeIn ${
+                                  dadosMotoristaStatus.tipo === 'sucesso'
+                                    ? 'bg-emerald-50/90 text-emerald-800 border border-emerald-200/80 shadow-xs'
+                                    : 'bg-zinc-100 text-zinc-700 border border-zinc-200'
+                                }`}
+                              >
+                                {dadosMotoristaStatus.tipo === 'sucesso' ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-zinc-500 shrink-0" />
+                                )}
+                                <span className="font-medium text-[11px] sm:text-xs leading-snug">
+                                  {dadosMotoristaStatus.mensagem}
+                                </span>
+                              </div>
+                            )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-zinc-50/80 p-4 rounded-2xl border border-zinc-200">
                               {/* Número da CNH */}
