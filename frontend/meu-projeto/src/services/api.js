@@ -237,6 +237,27 @@ export async function createColaboradorApi(formData) {
   return await res.json();
 }
 
+export async function consultarMotoristaDadosApi(nome) {
+  if (!nome || typeof nome !== 'string' || nome.trim().length < 2) {
+    return { encontrado: false, cnh: null, exame: null };
+  }
+  const url = `${API_BASE_URL}/colaboradores/consultar-motorista-dados?nome=${encodeURIComponent(nome.trim())}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    return { encontrado: false, cnh: null, exame: null };
+  }
+  return await res.json();
+}
+
+export async function listarMotoristasBancoApi(q = '') {
+  const url = q ? `${API_BASE_URL}/colaboradores/listar-motoristas-banco?q=${encodeURIComponent(q)}` : `${API_BASE_URL}/colaboradores/listar-motoristas-banco`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
 export async function createPessoaJuridicaApi(formData) {
   const res = await fetch(`${API_BASE_URL}/pessoas-juridicas`, {
     method: 'POST',
