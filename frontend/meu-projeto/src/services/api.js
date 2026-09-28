@@ -249,6 +249,15 @@ export async function consultarMotoristaDadosApi(nome) {
   return await res.json();
 }
 
+export async function listarMotoristasBancoApi(q = '') {
+  const url = q ? `${API_BASE_URL}/colaboradores/listar-motoristas-banco?q=${encodeURIComponent(q)}` : `${API_BASE_URL}/colaboradores/listar-motoristas-banco`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
 export async function createPessoaJuridicaApi(formData) {
   const res = await fetch(`${API_BASE_URL}/pessoas-juridicas`, {
     method: 'POST',

@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import { toCanvas } from 'html-to-image';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi, consultarMotoristaDadosApi } from '../services/api';
+import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi, consultarMotoristaDadosApi, listarMotoristasBancoApi } from '../services/api';
 import DocumentosPessoaFisica from './DocumentosPessoaFisica';
 import DocumentosPessoaJuridica from './DocumentosPessoaJuridica';
 
@@ -30,7 +30,10 @@ import {
   Database,
   Loader2,
   Sparkles,
-  Search
+  Search,
+  X,
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
@@ -108,6 +111,10 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
   const [loadingCep, setLoadingCep] = useState(false);
   const [buscandoDadosMotorista, setBuscandoDadosMotorista] = useState(false);
   const [dadosMotoristaStatus, setDadosMotoristaStatus] = useState(null); // { tipo: 'sucesso' | 'info', mensagem: '' }
+  const [modalBuscaBancoAberto, setModalBuscaBancoAberto] = useState(false);
+  const [listaMotoristasBanco, setListaMotoristasBanco] = useState([]);
+  const [carregandoListaBanco, setCarregandoListaBanco] = useState(false);
+  const [filtroBuscaBanco, setFiltroBuscaBanco] = useState('');
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [colaboradorId, setColaboradorId] = useState('');
   const [rascunhoCarregado, setRascunhoCarregado] = useState(false);
@@ -783,10 +790,66 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
     return !errorMsg;
   }
 
+  // Abre o modal com lista completa de motoristas cadastrados no banco
+  async function abrirModalBuscaBanco() {
+    setModalBuscaBancoAberto(true);
+    setFiltroBuscaBanco(formData.nome || '');
+    setCarregandoListaBanco(true);
+    try {
+      const dados = await listarMotoristasBancoApi();
+      setListaMotoristasBanco(dados || []);
+    } catch (err) {
+      console.warn('Erro ao carregar motoristas do banco:', err);
+    } finally {
+      setCarregandoListaBanco(false);
+    }
+  }
+
+  function selecionarMotoristaBanco(motorista) {
+    setFormData((prev) => ({
+      ...prev,
+      nome: motorista.nome || prev.nome,
+      cnhNumero: motorista.cnh_numero || prev.cnhNumero,
+      cnhValidade: motorista.cnh_validade || prev.cnhValidade,
+      exameToxicologicoEmissao: motorista.exame_emissao || prev.exameToxicologicoEmissao,
+      exameToxicologicoVencimento: motorista.exame_vencimento || prev.exameToxicologicoVencimento,
+    }));
+    setModalBuscaBancoAberto(false);
+    setDadosMotoristaStatus({
+      tipo: 'sucesso',
+      mensagem: `Dados de ${motorista.nome} selecionados e preenchidos do banco de dados!`
+    });
+    setTimeout(() => {
+      setDadosMotoristaStatus(null);
+    }, 7000);
+  }
+
+  function limparDadosMotorista() {
+    setFormData((prev) => ({
+      ...prev,
+      cnhNumero: '',
+      cnhValidade: '',
+      exameToxicologicoEmissao: '',
+      exameToxicologicoVencimento: '',
+    }));
+    setDadosMotoristaStatus(null);
+  }
+
+  const listaFiltradaMotoristas = listaMotoristasBanco.filter((m) => {
+    if (!filtroBuscaBanco || !filtroBuscaBanco.trim()) return true;
+    const termo = filtroBuscaBanco.trim().toLowerCase();
+    const nome = (m.nome || '').toLowerCase();
+    const cnh = (m.cnh_numero || '').toLowerCase();
+    return nome.includes(termo) || cnh.includes(termo);
+  });
+
   // Busca automática e discreta de dados de CNH e Exame Toxicológico no banco
   async function handleBuscarDadosMotorista(nomeManual) {
     const nomeBusca = (nomeManual !== undefined ? nomeManual : formData.nome || '').trim();
-    if (nomeBusca.length < 3) return;
+    if (nomeBusca.length < 3) {
+      abrirModalBuscaBanco();
+      return;
+    }
 
     setBuscandoDadosMotorista(true);
     try {
@@ -1984,11 +2047,22 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                           <div className="sm:col-span-2">
                             <label className="block text-xs font-extrabold uppercase text-zinc-900 tracking-wide mb-1.5 flex items-center justify-between">
                               <span>Nome Completo <span className="text-red-600 font-black">*</span></span>
-                              {buscandoDadosMotorista && (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium lowercase tracking-normal">
-                                  <Loader2 className="w-2.5 h-2.5 animate-spin text-red-600" /> buscando CNH / Toxicológico no banco...
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {buscandoDadosMotorista && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium lowercase tracking-normal">
+                                    <Loader2 className="w-2.5 h-2.5 animate-spin text-red-600" /> buscando CNH/Exame...
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={abrirModalBuscaBanco}
+                                  className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 font-bold hover:underline cursor-pointer lowercase"
+                                  title="Buscar motoristas cadastrados no banco"
+                                >
+                                  <Database className="w-3 h-3" />
+                                  <span>buscar no banco</span>
+                                </button>
+                              </div>
                             </label>
                             <input
                               type="text"
@@ -2139,22 +2213,28 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                 </div>
                               </div>
 
-                              {/* Botão de busca discreta no banco de dados */}
+                              {/* Botões de ação: busca e limpeza */}
                               <div className="flex items-center gap-2 self-start sm:self-auto">
                                 <button
                                   type="button"
-                                  onClick={() => handleBuscarDadosMotorista()}
-                                  disabled={buscandoDadosMotorista || !formData.nome || formData.nome.trim().length < 3}
-                                  title="Buscar CNH e Exame Toxicológico existentes no banco de dados para este nome"
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-red-700 bg-white hover:bg-red-50/60 border border-zinc-200 hover:border-red-200 transition-all shadow-xs disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                                  onClick={abrirModalBuscaBanco}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition-all shadow-xs hover:shadow active:scale-95 cursor-pointer"
+                                  title="Consultar e preencher a partir dos motoristas cadastrados no banco de dados"
                                 >
-                                  {buscandoDadosMotorista ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
-                                  ) : (
-                                    <Database className="w-3.5 h-3.5 text-red-600" />
-                                  )}
+                                  <Database className="w-3.5 h-3.5 text-red-600" />
                                   <span>Buscar no Banco</span>
                                 </button>
+                                {(formData.cnhNumero || formData.cnhValidade || formData.exameToxicologicoEmissao || formData.exameToxicologicoVencimento) && (
+                                  <button
+                                    type="button"
+                                    onClick={limparDadosMotorista}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-500 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 transition-all active:scale-95 cursor-pointer"
+                                    title="Limpar os campos de CNH e Exame Toxicológico"
+                                  >
+                                    <X className="w-3 h-3" />
+                                    <span>Limpar</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -3033,6 +3113,138 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                 </div>
 
               </form>
+            </div>
+
+          </div>
+        </div>
+      )}
+      {/* MODAL DE BUSCA NO BANCO DE DADOS (CNH & EXAMES TOXICOLÓGICOS) */}
+      {modalBuscaBancoAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[85vh] animate-scaleUp">
+            
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0 shadow-xs">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-zinc-900 uppercase tracking-wide">
+                    Buscar no Banco de Dados
+                  </h3>
+                  <p className="text-xs text-zinc-500 font-medium">
+                    Base unificada de CNHs e Exames Toxicológicos
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalBuscaBancoAberto(false)}
+                className="w-8 h-8 rounded-full bg-zinc-200/60 hover:bg-zinc-200 text-zinc-600 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Barra de Pesquisa */}
+            <div className="p-4 border-b border-zinc-100 bg-white">
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={filtroBuscaBanco}
+                  onChange={(e) => setFiltroBuscaBanco(e.target.value)}
+                  placeholder="Digite o nome do colaborador ou número da CNH..."
+                  autoFocus
+                  className="w-full pl-10 pr-16 py-2.5 rounded-xl border border-zinc-300 focus:border-red-600 focus:ring-2 focus:ring-red-500/20 text-sm font-medium outline-none transition-all placeholder:text-zinc-400"
+                />
+                {filtroBuscaBanco && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltroBuscaBanco('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Lista de Motoristas */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-2.5 bg-zinc-50/40">
+              {carregandoListaBanco ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-zinc-400">
+                  <Loader2 className="w-6 h-6 animate-spin text-red-600" />
+                  <span className="text-xs font-medium">Carregando registros do banco...</span>
+                </div>
+              ) : listaFiltradaMotoristas.length === 0 ? (
+                <div className="py-10 text-center text-zinc-500">
+                  <p className="text-xs font-bold text-zinc-700 mb-1">Nenhum motorista encontrado</p>
+                  <p className="text-[11px] text-zinc-400">Tente buscar por outro termo ou preencha manualmente.</p>
+                </div>
+              ) : (
+                listaFiltradaMotoristas.map((item, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => selecionarMotoristaBanco(item)}
+                    className="p-3.5 rounded-2xl border border-zinc-200/80 bg-white hover:border-red-300 hover:bg-red-50/30 transition-all cursor-pointer shadow-xs hover:shadow-md flex items-center justify-between gap-3 group"
+                  >
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-zinc-900 group-hover:text-red-700 transition-colors uppercase tracking-tight truncate">
+                          {item.nome}
+                        </span>
+                        {item.setor && (
+                          <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
+                            {item.setor}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        {item.tem_cnh ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-md">
+                            <Car className="w-3 h-3 text-emerald-600" />
+                            <span>CNH {item.cnh_numero ? `(${item.cnh_numero})` : ''} - Venc: {item.cnh_validade_display || 'OK'}</span>
+                          </span>
+                        ) : (
+                          <span className="text-zinc-400 text-[10px]">Sem CNH</span>
+                        )}
+
+                        {item.tem_exame ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-violet-700 bg-violet-50 border border-violet-200/70 px-2 py-0.5 rounded-md">
+                            <FlaskConical className="w-3 h-3 text-violet-600" />
+                            <span>Toxicológico: Venc. {item.exame_vencimento_display || 'OK'}</span>
+                          </span>
+                        ) : (
+                          <span className="text-zinc-400 text-[10px]">Sem Toxicológico</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 group-hover:bg-red-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <span>Preencher</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-zinc-100 bg-zinc-50/70 flex items-center justify-between text-xs text-zinc-500 font-medium">
+              <span>{listaFiltradaMotoristas.length} registro(s) encontrado(s)</span>
+              <button
+                type="button"
+                onClick={() => setModalBuscaBancoAberto(false)}
+                className="text-zinc-600 hover:text-zinc-900 font-bold cursor-pointer"
+              >
+                Fechar
+              </button>
             </div>
 
           </div>
