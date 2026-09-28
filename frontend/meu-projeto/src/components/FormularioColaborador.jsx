@@ -2062,6 +2062,20 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                   <Database className="w-3 h-3" />
                                   <span>buscar no banco</span>
                                 </button>
+                                {formData.nome && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleChange('nome', '');
+                                      limparDadosMotorista();
+                                    }}
+                                    className="inline-flex items-center gap-0.5 text-[11px] text-zinc-400 hover:text-zinc-600 font-medium hover:underline cursor-pointer lowercase"
+                                    title="Limpar nome e dados preenchidos"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                    <span>limpar</span>
+                                  </button>
+                                )}
                               </div>
                             </label>
                             <input
@@ -2224,17 +2238,15 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                   <Database className="w-3.5 h-3.5 text-red-600" />
                                   <span>Buscar no Banco</span>
                                 </button>
-                                {(formData.cnhNumero || formData.cnhValidade || formData.exameToxicologicoEmissao || formData.exameToxicologicoVencimento) && (
-                                  <button
-                                    type="button"
-                                    onClick={limparDadosMotorista}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-500 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 transition-all active:scale-95 cursor-pointer"
-                                    title="Limpar os campos de CNH e Exame Toxicológico"
-                                  >
-                                    <X className="w-3 h-3" />
-                                    <span>Limpar</span>
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={limparDadosMotorista}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-500 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 transition-all active:scale-95 cursor-pointer"
+                                  title="Limpar os campos de CNH e Exame Toxicológico"
+                                >
+                                  <X className="w-3 h-3" />
+                                  <span>Limpar</span>
+                                </button>
                               </div>
                             </div>
 
