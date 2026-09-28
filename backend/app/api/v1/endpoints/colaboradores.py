@@ -10,6 +10,7 @@ from app.core.encryption import encrypt_val, decrypt_val, encrypt_bytes, decrypt
 from app.models.colaborador import ColaboradorCadastro
 from app.models.documento_colaborador import DocumentoColaborador
 from app.models.exame_toxicologico import ExameToxicologico
+from app.models.cnh import CNHFuncionario
 from app.models.usuario import Usuario
 from app.schemas.colaborador import ColaboradorCreate, ColaboradorOut, StatusUpdate
 from app.services.protocolo import gerar_protocolo
@@ -67,6 +68,211 @@ def _descriptografar_colaborador(col):
     col.chave_pix = decrypt_val(col.chave_pix)
     return col
 
+
+# ============================================================================
+# CONSULTA RÁPIDA DE MOTORISTA (CNH + EXAME TOXICOLÓGICO)
+# ============================================================================
+@router.get("/consultar-motorista-dados")
+def consultar_motorista_dados(
+    nome: str = Query(..., min_length=2, description="Nome ou termo de busca do colaborador"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Busca automaticamente nas tabelas de CNH (cnhs_funcionarios) e Exame Toxicológico
+    (exames_toxicologicos) por nome para autopreenchimento no formulário de cadastro.
+    """
+    nome_norm = (nome or "").strip()
+    if not nome_norm or len(nome_norm) < 2:
+        return {"encontrado": False, "cnh": None, "exame": None}
+
+    def _para_iso_date(data_str: Optional[str]) -> Optional[str]:
+        if not data_str:
+            return None
+        s = str(data_str).strip()
+        if "/" in s:
+            partes = s.split("/")
+            if len(partes) == 3:
+                dia, mes, ano = partes[0].zfill(2), partes[1].zfill(2), partes[2]
+                if len(ano) == 4:
+                    return f"{ano}-{mes}-{dia}"
+        elif "-" in s:
+            partes = s.split("-")
+            if len(partes) == 3 and len(partes[0]) == 4:
+                return s
+        return s
+
+    def _para_display_date(data_str: Optional[str]) -> Optional[str]:
+        if not data_str:
+            return None
+        s = str(data_str).strip()
+        if "-" in s:
+            partes = s.split("-")
+            if len(partes) == 3 and len(partes[0]) == 4:
+                return f"{partes[2].zfill(2)}/{partes[1].zfill(2)}/{partes[0]}"
+        return s
+
+    resultado_cnh = None
+    resultado_exame = None
+    encontrado_cnh = False
+    encontrado_exame = False
+
+    # 1. Busca na tabela de CNH (cnhs_funcionarios)
+    cnh_item = db.query(CNHFuncionario).filter(
+        func.trim(func.upper(CNHFuncionario.nome)) == nome_norm.upper()
+    ).order_by(CNHFuncionario.id.desc()).first()
+
+    if not cnh_item:
+        cnh_item = db.query(CNHFuncionario).filter(
+            CNHFuncionario.nome.ilike(f"%{nome_norm}%")
+        ).order_by(CNHFuncionario.id.desc()).first()
+
+    if cnh_item:
+        encontrado_cnh = True
+        cnh_num_plain = decrypt_val(cnh_item.cnh_numero) if cnh_item.cnh_numero else ""
+        cnh_digits = "".join(filter(str.isdigit, cnh_num_plain)) if cnh_num_plain else cnh_num_plain
+        resultado_cnh = {
+            "id": cnh_item.id,
+            "nome": cnh_item.nome,
+            "setor": cnh_item.setor,
+            "cnh_numero": cnh_digits or cnh_num_plain or "",
+            "cnh_validade": _para_iso_date(cnh_item.cnh_validade),
+            "cnh_validade_display": _para_display_date(cnh_item.cnh_validade) or cnh_item.cnh_validade,
+            "observacao": cnh_item.observacao or ""
+        }
+
+    # 2. Busca na tabela de Exame Toxicológico (exames_toxicologicos)
+    exame_item = db.query(ExameToxicologico).filter(
+        func.trim(func.upper(ExameToxicologico.nome)) == nome_norm.upper()
+    ).order_by(ExameToxicologico.id.desc()).first()
+
+    if not exame_item:
+        exame_item = db.query(ExameToxicologico).filter(
+            ExameToxicologico.nome.ilike(f"%{nome_norm}%")
+        ).order_by(ExameToxicologico.id.desc()).first()
+
+    if exame_item:
+        encontrado_exame = True
+        resultado_exame = {
+            "id": exame_item.id,
+            "nome": exame_item.nome,
+            "data_exame": _para_iso_date(exame_item.data_exame),
+            "data_vencimento": _para_iso_date(exame_item.data_vencimento),
+            "data_exame_display": _para_display_date(exame_item.data_exame) or exame_item.data_exame,
+            "data_vencimento_display": _para_display_date(exame_item.data_vencimento) or exame_item.data_vencimento
+        }
+
+    return {
+        "encontrado": bool(encontrado_cnh or encontrado_exame),
+        "encontrado_cnh": encontrado_cnh,
+        "encontrado_exame": encontrado_exame,
+        "cnh": resultado_cnh,
+        "exame": resultado_exame
+    }
+
+
+@router.get("/listar-motoristas-banco")
+def listar_motoristas_banco(
+    q: Optional[str] = Query(None, description="Filtro por nome do motorista"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Retorna a lista unificada de todos os motoristas cadastrados nas tabelas de CNH e Exames Toxicológicos,
+    para permitir seleção rápida e autopreenchimento no formulário de cadastro.
+    """
+    def _para_iso_date(data_str: Optional[str]) -> Optional[str]:
+        if not data_str:
+            return None
+        s = str(data_str).strip()
+        if "/" in s:
+            partes = s.split("/")
+            if len(partes) == 3:
+                dia, mes, ano = partes[0].zfill(2), partes[1].zfill(2), partes[2]
+                if len(ano) == 4:
+                    return f"{ano}-{mes}-{dia}"
+        elif "-" in s:
+            partes = s.split("-")
+            if len(partes) == 3 and len(partes[0]) == 4:
+                return s
+        return s
+
+    def _para_display_date(data_str: Optional[str]) -> Optional[str]:
+        if not data_str:
+            return None
+        s = str(data_str).strip()
+        if "-" in s:
+            partes = s.split("-")
+            if len(partes) == 3 and len(partes[0]) == 4:
+                return f"{partes[2].zfill(2)}/{partes[1].zfill(2)}/{partes[0]}"
+        return s
+
+    # 1. Carrega todos de CNH
+    cnhs_query = db.query(CNHFuncionario)
+    if q and q.strip():
+        cnhs_query = cnhs_query.filter(CNHFuncionario.nome.ilike(f"%{q.strip()}%"))
+    cnhs_lista = cnhs_query.order_by(CNHFuncionario.nome.asc()).all()
+
+    # 2. Carrega todos de Exames
+    exames_query = db.query(ExameToxicologico)
+    if q and q.strip():
+        exames_query = exames_query.filter(ExameToxicologico.nome.ilike(f"%{q.strip()}%"))
+    exames_lista = exames_query.order_by(ExameToxicologico.nome.asc()).all()
+
+    # Agrupa por nome normalizado (case-insensitive)
+    mapa = {}
+
+    for c in cnhs_lista:
+        nome_norm = (c.nome or "").strip()
+        if not nome_norm:
+            continue
+        key = nome_norm.upper()
+        cnh_num_plain = decrypt_val(c.cnh_numero) if c.cnh_numero else ""
+        cnh_digits = "".join(filter(str.isdigit, cnh_num_plain)) if cnh_num_plain else cnh_num_plain
+        mapa[key] = {
+            "nome": nome_norm,
+            "tem_cnh": True,
+            "tem_exame": False,
+            "cnh_numero": cnh_digits or cnh_num_plain or "",
+            "cnh_validade": _para_iso_date(c.cnh_validade),
+            "cnh_validade_display": _para_display_date(c.cnh_validade) or c.cnh_validade,
+            "exame_emissao": None,
+            "exame_vencimento": None,
+            "exame_emissao_display": None,
+            "exame_vencimento_display": None,
+            "setor": c.setor or "FROTA"
+        }
+
+    for e in exames_lista:
+        nome_norm = (e.nome or "").strip()
+        if not nome_norm:
+            continue
+        key = nome_norm.upper()
+        if key not in mapa:
+            mapa[key] = {
+                "nome": nome_norm,
+                "tem_cnh": False,
+                "tem_exame": True,
+                "cnh_numero": "",
+                "cnh_validade": None,
+                "cnh_validade_display": None,
+                "exame_emissao": _para_iso_date(e.data_exame),
+                "exame_vencimento": _para_iso_date(e.data_vencimento),
+                "exame_emissao_display": _para_display_date(e.data_exame) or e.data_exame,
+                "exame_vencimento_display": _para_display_date(e.data_vencimento) or e.data_vencimento,
+                "setor": "FROTA"
+            }
+        else:
+            mapa[key]["tem_exame"] = True
+            mapa[key]["exame_emissao"] = _para_iso_date(e.data_exame)
+            mapa[key]["exame_vencimento"] = _para_iso_date(e.data_vencimento)
+            mapa[key]["exame_emissao_display"] = _para_display_date(e.data_exame) or e.data_exame
+            mapa[key]["exame_vencimento_display"] = _para_display_date(e.data_vencimento) or e.data_vencimento
+
+    lista_final = sorted(list(mapa.values()), key=lambda x: x["nome"].upper())
+    return lista_final
+
+
 @router.post("", response_model=ColaboradorOut, status_code=status.HTTP_201_CREATED)
 def criar_cadastro_colaborador(
     dados: ColaboradorCreate,
@@ -96,17 +302,18 @@ def criar_cadastro_colaborador(
     db.commit()
     db.refresh(colaborador)
 
+    nome_norm = (dados.nome_completo or "").strip()
+
+    def _norm_data(d_str):
+        if d_str and '-' in d_str:
+            parts = d_str.split('-')
+            if len(parts) == 3:
+                return f"{parts[2]}/{parts[1]}/{parts[0]}"
+        return d_str or ""
+
     # Sincroniza com o módulo de exames toxicológicos se informado
     if dados.exame_toxicologico_emissao and dados.exame_toxicologico_vencimento:
         try:
-            nome_norm = (dados.nome_completo or "").strip()
-            def _norm_data(d_str):
-                if d_str and '-' in d_str:
-                    parts = d_str.split('-')
-                    if len(parts) == 3:
-                        return f"{parts[2]}/{parts[1]}/{parts[0]}"
-                return d_str or ""
-
             dt_ex = _norm_data(dados.exame_toxicologico_emissao)
             dt_vc = _norm_data(dados.exame_toxicologico_vencimento)
 
@@ -124,6 +331,34 @@ def criar_cadastro_colaborador(
                         data_vencimento=dt_vc
                     )
                     db.add(novo_exame)
+                db.commit()
+        except Exception:
+            db.rollback()
+
+    # Sincroniza com o módulo de CNH se informado
+    if dados.cnh_validade:
+        try:
+            dt_cnh = _norm_data(dados.cnh_validade)
+            cnh_num_raw = (dados.cnh_numero or "").strip()
+            cnh_num_enc = encrypt_val(cnh_num_raw) if cnh_num_raw else None
+
+            if nome_norm and dt_cnh:
+                existente_cnh = db.query(CNHFuncionario).filter(
+                    func.upper(CNHFuncionario.nome) == nome_norm.upper()
+                ).first()
+                if existente_cnh:
+                    if cnh_num_enc:
+                        existente_cnh.cnh_numero = cnh_num_enc
+                    existente_cnh.cnh_validade = dt_cnh
+                else:
+                    nova_cnh = CNHFuncionario(
+                        nome=nome_norm,
+                        setor="FROTA",
+                        cnh_numero=cnh_num_enc,
+                        cnh_validade=dt_cnh,
+                        observacao="Cadastrado via Ficha de Colaborador"
+                    )
+                    db.add(nova_cnh)
                 db.commit()
         except Exception:
             db.rollback()
