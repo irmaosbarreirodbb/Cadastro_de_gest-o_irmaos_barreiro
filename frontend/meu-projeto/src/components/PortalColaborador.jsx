@@ -665,6 +665,7 @@ export default function PortalColaborador({ user, onLogout }) {
               dataSelecionada={dataSelecionada}
               setDataSelecionada={setDataSelecionada}
               onNavigateCadastrar={() => setActiveModule('cadastrar_diarista')}
+              onAddDiarista={handleAddDiarista}
               onEmitirRecibo={handleEmitirReciboDireto}
               onToggleStatus={handleToggleStatus}
               onUpdateDiarista={handleUpdateDiarista}

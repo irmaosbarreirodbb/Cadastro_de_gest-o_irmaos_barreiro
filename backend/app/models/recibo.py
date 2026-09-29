@@ -8,7 +8,7 @@ class Recibo(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     numero_recibo = Column(String(50), unique=True, index=True, nullable=False)
-    diarista_id = Column(String, ForeignKey("diaristas_lancamentos.id"), nullable=True)
+    diarista_id = Column(String, ForeignKey("diaristas_lancamentos.id", ondelete="SET NULL"), nullable=True)
     nome_diarista = Column(String(150), nullable=False)
     cpf_diarista = Column(Text, nullable=True)
     funcao = Column(String(100), nullable=True)

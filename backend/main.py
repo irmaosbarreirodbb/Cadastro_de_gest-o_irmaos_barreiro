@@ -54,6 +54,19 @@ def init_db():
                 """
                 DO $$
                 BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.table_constraints 
+                        WHERE constraint_name = 'recibos_diarista_id_fkey'
+                    ) THEN
+                        ALTER TABLE recibos DROP CONSTRAINT recibos_diarista_id_fkey;
+                        ALTER TABLE recibos ADD CONSTRAINT recibos_diarista_id_fkey 
+                            FOREIGN KEY (diarista_id) REFERENCES diaristas_lancamentos(id) ON DELETE SET NULL;
+                    END IF;
+                END $$;
+                """,
+                """
+                DO $$
+                BEGIN
                     IF to_regclass('public.colaboradores_cadastros') IS NOT NULL THEN
                         -- Preserva exclusivamente o cadastro solicitado e seus anexos.
                         INSERT INTO pessoas_fisicas_cadastros

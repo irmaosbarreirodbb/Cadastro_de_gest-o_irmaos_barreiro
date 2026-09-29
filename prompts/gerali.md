@@ -1,0 +1,2 @@
+EXAMES:
+ -->No frontend colocar a opção de armazenar o PDF do exame toxicologico, coloque tipo um ícone ai quando eu clicar no icone vai ter a opção de carregar o PDF ai eu carrego o PDF  e ele vai ser armazenado no banco de dados.

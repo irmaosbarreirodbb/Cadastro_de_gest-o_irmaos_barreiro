@@ -1,0 +1,4 @@
+CNH:
+--->Quero que haja uma caixinha no frontend referente a CNH, siga o msm processo e funções que tem no exame toxicologico, só que com 2 tabelas, tipo a com o pessoal de frota e a outra com o pessoal da administração, mas no front tem que ser as 2 opções em uma caixinha só aí no front quando eu entrar na caxinha eu tenha a oopção de ver ao do pessoal da frota e da administração, quero também que eu possa carregar a planilha referente aquele setor, aí esse negocio da planilha faça igual fez com as outras, tbb quero a opção de poder carregar o PDF referente aquele condutor entendeu? ai tbb quero que eu possa pegar o relatorio impresso de td mundo igual é no toxicologico, e tbb tem que ter a opção de inserir o motorista, FAÇA A PARTE DE ENVIO DE EMAILS TBB MAS FAÇA COM O MSM ESTILO QUE É FEITO NO TOXICOLOGICO, MAS NÃO MISTURE NADA MS USE A MSM CHAVE DO BREVO.
+
+NADA DE MEXER EM GIT E GITHUB, VC NÃO TEM ESSA AUTORIZAÇÃO OK?
