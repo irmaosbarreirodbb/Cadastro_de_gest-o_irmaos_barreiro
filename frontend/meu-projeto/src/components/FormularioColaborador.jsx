@@ -2062,7 +2062,7 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                   <Database className="w-3 h-3" />
                                   <span>buscar no banco</span>
                                 </button>
-                                {formData.nome && (
+                                {(formData.nome || formData.cnhNumero || formData.exameToxicologicoVencimento) && (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -2227,7 +2227,7 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                 </div>
                               </div>
 
-                              {/* Botões de ação: busca e limpeza */}
+                              {/* Botão de ação: busca no banco */}
                               <div className="flex items-center gap-2 self-start sm:self-auto">
                                 <button
                                   type="button"
@@ -2237,15 +2237,6 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
                                 >
                                   <Database className="w-3.5 h-3.5 text-red-600" />
                                   <span>Buscar no Banco</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={limparDadosMotorista}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-500 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 transition-all active:scale-95 cursor-pointer"
-                                  title="Limpar os campos de CNH e Exame Toxicológico"
-                                >
-                                  <X className="w-3 h-3" />
-                                  <span>Limpar</span>
                                 </button>
                               </div>
                             </div>
