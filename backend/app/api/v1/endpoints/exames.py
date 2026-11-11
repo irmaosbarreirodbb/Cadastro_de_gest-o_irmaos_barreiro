@@ -135,7 +135,24 @@ def atualizar_exame(
 
 
 # ============================================================================
-# 4. EXCLUIR — DELETE /exames/{id}
+# 4. LIMPAR TODOS — DELETE /exames/limpar-todos
+# Declarada antes de DELETE /exames/{id}: o FastAPI testa as rotas na ordem e
+# "/{exame_id}" capturaria "limpar-todos", respondendo 422.
+# ============================================================================
+
+@router.delete("/limpar-todos", status_code=status.HTTP_200_OK)
+def limpar_todos_exames(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Remove todos os registros de exames toxicológicos."""
+    total = db.query(ExameToxicologico).delete()
+    db.commit()
+    return {"mensagem": f"{total} registro(s) removido(s) com sucesso.", "total": total}
+
+
+# ============================================================================
+# 5. EXCLUIR — DELETE /exames/{id}
 # ============================================================================
 
 @router.delete("/{exame_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,21 +168,6 @@ def deletar_exame(
     db.delete(exame)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# ============================================================================
-# 5. LIMPAR TODOS — DELETE /exames/limpar-todos
-# ============================================================================
-
-@router.delete("/limpar-todos", status_code=status.HTTP_200_OK)
-def limpar_todos_exames(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """Remove todos os registros de exames toxicológicos."""
-    total = db.query(ExameToxicologico).delete()
-    db.commit()
-    return {"mensagem": f"{total} registro(s) removido(s) com sucesso.", "total": total}
 
 
 # ============================================================================

@@ -323,6 +323,21 @@ def _ultimo_alerta(db: Session, exame_id: int) -> "date | None":
     return row[0] if row else None
 
 
+def _deve_alertar_vencendo(ultimo_alerta: "date | None", hoje: date, dias_para_vencer: int) -> bool:
+    """
+    Decide se um exame VENCENDO (0..DIAS_ALERTA dias) deve receber alerta.
+
+    O controle de alertas é por exame_id, e uma renovação atualiza a data de
+    vencimento no mesmo registro. Por isso só conta como "já alertado" o alerta
+    enviado dentro da janela do vencimento ATUAL (a partir de vencimento −
+    DIAS_ALERTA). Alertas de ciclos anteriores (antes da renovação) são ignorados.
+    """
+    if ultimo_alerta is None:
+        return True
+    inicio_janela_atual = hoje + timedelta(days=dias_para_vencer - DIAS_ALERTA)
+    return ultimo_alerta < inicio_janela_atual
+
+
 def _registrar_alerta(db: Session, exame: ExameToxicologico) -> None:
     """Salva o registro de alerta enviado hoje para este motorista."""
     hoje = _hoje_local()
@@ -370,19 +385,11 @@ def verificar_e_enviar_alertas(db: Session) -> dict:
 
         if dias >= 0:
             # ── Exame VENCENDO (0 a 10 dias) ──
-            # Envia apenas se nunca recebeu alerta OU se recebeu alerta
-            # quando ainda estava fora da janela (entrou na janela hoje).
+            # Envia uma única vez por ciclo de vencimento. Alertas de um
+            # vencimento anterior (exame renovado) não bloqueiam o novo aviso.
             ultimo = _ultimo_alerta(db, exame.id)
-            if ultimo is None:
-                # Nunca alertado → inclui
+            if _deve_alertar_vencendo(ultimo, hoje, dias):
                 a_alertar.append(exame)
-            else:
-                # Já alertado anteriormente → inclui se hoje é o dia exato
-                # em que entrou na janela (dias == DIAS_ALERTA) para reforçar,
-                # ou se o último alerta foi antes da janela atual começar.
-                # Na prática: não reenvia enquanto segue "VENCENDO".
-                # (O reforço só ocorre para vencidos abaixo.)
-                pass
 
         else:
             # ── Exame VENCIDO ──

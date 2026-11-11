@@ -1,0 +1,2 @@
+DADOS CADASTRAIS:
+-->colocar as colunas no banco de dados na parte de colabores_cadastros nessa tabela vc vai colocar CNH de validade, e Numero de CNH, e n frontend colocar a parte para preencher essas informções, e tbb coloque a parte de exame toxicologico, emissão do exame e a data do vencimento, além disso coloque os CAMPOS NO FRONTEND PARA QUEM FOR PREENCER PREENCHER OK? 

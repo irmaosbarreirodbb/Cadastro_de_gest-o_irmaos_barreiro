@@ -46,7 +46,7 @@
 4. Vá para a aba **"Variables"** e clique em **"Raw Editor"** (ou adicione uma a uma):
    ```env
    DATABASE_URL=${{Postgres.DATABASE_URL}}
-   SECRET_KEY=irmaos_barreiro_prod_2026_jwt_token_super_seguro_cascavel_ce
+   SECRET_KEY=<gere uma chave aleatória longa — ex.: python -c "import secrets; print(secrets.token_urlsafe(64))">
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=480
    ALLOWED_ORIGINS=http://localhost:5173

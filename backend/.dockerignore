@@ -1,0 +1,21 @@
+# Segredos: nunca podem entrar na imagem (no Railway vêm das Variables)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Ambiente local e caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Não são necessários para rodar a API
+tests/
+seeds/
+*.sql
+*.dump
+*.log
+README.md

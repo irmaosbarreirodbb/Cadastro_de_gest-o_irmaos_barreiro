@@ -11,7 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Usuário sem privilégios de administrador para rodar a API.
+# A aplicação não grava arquivos em disco (PDFs e anexos ficam no banco).
+RUN useradd --create-home --uid 1000 appuser
+
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 EXPOSE 8000
 

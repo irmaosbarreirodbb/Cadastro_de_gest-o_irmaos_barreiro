@@ -82,9 +82,9 @@ Foram identificadas **16 vulnerabilidades e fragilidades de segurança**, catego
   - `backend/app/core/encryption.py` (linhas 6-11)
   - `backend/.env` (linhas 2, 5)
 - **Mecânica da Falha**:
-  - `SECRET_KEY = "irmaos_barreiro_secret_key_cascavel_ce_2026_super_segura"` está gravada estaticamente no código.
+  - `SECRET_KEY = "<valor removido>"` está gravada estaticamente no código.
   - A mesma chave é usada para assinar tokens JWT e para gerar a chave simétrica AES/Fernet que protege os dados dos colaboradores.
-  - A senha do banco de dados (`qwe123`) também consta no arquivo de configuração padrão.
+  - A senha do banco de dados (`<valor removido>`) também consta no arquivo de configuração padrão.
 - **Impacto**: Qualquer pessoa com acesso ao repositório ou com capacidade de leitura do arquivo pode:
   1. Forjar tokens JWT válidos para qualquer identidade de usuário.
   2. Descriptografar offline todos os CPFs, RGs, contas bancárias e PIX salvos no banco.
