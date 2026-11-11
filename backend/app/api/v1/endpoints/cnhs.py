@@ -214,7 +214,31 @@ def atualizar_cnh(
 
 
 # ============================================================================
-# 4. EXCLUIR — DELETE /cnhs/{id}
+# 4. LIMPAR TODOS — DELETE /cnhs/limpar-todos
+# Declarada antes de DELETE /cnhs/{id}: o FastAPI testa as rotas na ordem e
+# "/{cnh_id}" capturaria "limpar-todos", respondendo 422.
+# ============================================================================
+
+@router.delete("/limpar-todos", status_code=status.HTTP_200_OK)
+def limpar_todas_cnhs(
+    setor: Optional[str] = Query(None, description="FROTA | ADM"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Remove registros de CNH (opcionalmente apenas de um setor)."""
+    query = db.query(CNHFuncionario)
+    if setor:
+        s_norm = setor.strip().upper()
+        if s_norm in ("FROTA", "ADM"):
+            query = query.filter(CNHFuncionario.setor == s_norm)
+
+    total = query.delete(synchronize_session=False)
+    db.commit()
+    return {"mensagem": f"{total} registro(s) de CNH removido(s) com sucesso.", "total": total}
+
+
+# ============================================================================
+# 5. EXCLUIR — DELETE /cnhs/{id}
 # ============================================================================
 
 @router.delete("/{cnh_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -236,28 +260,6 @@ def deletar_cnh(
     db.delete(registro)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# ============================================================================
-# 5. LIMPAR TODOS — DELETE /cnhs/limpar-todos
-# ============================================================================
-
-@router.delete("/limpar-todos", status_code=status.HTTP_200_OK)
-def limpar_todas_cnhs(
-    setor: Optional[str] = Query(None, description="FROTA | ADM"),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """Remove registros de CNH (opcionalmente apenas de um setor)."""
-    query = db.query(CNHFuncionario)
-    if setor:
-        s_norm = setor.strip().upper()
-        if s_norm in ("FROTA", "ADM"):
-            query = query.filter(CNHFuncionario.setor == s_norm)
-
-    total = query.delete(synchronize_session=False)
-    db.commit()
-    return {"mensagem": f"{total} registro(s) de CNH removido(s) com sucesso.", "total": total}
 
 
 # ============================================================================

@@ -440,10 +440,13 @@ ALLOWED_ORIGINS = list(set((
     development_origins if settings.ENVIRONMENT == "development" else production_origins
 ) + custom_origins))
 
+# Somente origens explícitas. Não use curingas como *.up.railway.app: qualquer
+# pessoa pode publicar um site nesse domínio e, com allow_credentials=True,
+# ler a API usando o cookie de sessão de quem estiver logado.
+# Novos domínios do frontend devem ser adicionados em ALLOWED_ORIGINS no Railway.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
