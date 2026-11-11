@@ -40,6 +40,49 @@ function Home({ isLoggedIn, user, onLogin, onLogout }) {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary capturou erro:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+          <div className="max-w-lg w-full bg-zinc-900 border border-red-500/30 rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-600/20 text-red-500 mx-auto flex items-center justify-center">
+              <span className="text-2xl font-black">!</span>
+            </div>
+            <h2 className="text-lg font-black text-white">Falha ao carregar o módulo</h2>
+            <p className="text-xs text-zinc-400">
+              Ocorreu uma instabilidade pontual na exibição deste módulo.
+            </p>
+            <pre className="p-3 bg-black/60 rounded-xl text-left text-[11px] font-mono text-red-400 overflow-x-auto">
+              {this.state.error?.message || String(this.state.error)}
+            </pre>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-lg transition cursor-pointer"
+            >
+              Recarregar Módulo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [user, setUser] = useState(() => {
     try {
@@ -155,10 +198,12 @@ function App() {
           path="/portal"
           element={
             isLoggedIn ? (
-              <PortalColaborador
-                user={user}
-                onLogout={handleLogout}
-              />
+              <ErrorBoundary>
+                <PortalColaborador
+                  user={user}
+                  onLogout={handleLogout}
+                />
+              </ErrorBoundary>
             ) : (
               <Navigate to="/" replace />
             )

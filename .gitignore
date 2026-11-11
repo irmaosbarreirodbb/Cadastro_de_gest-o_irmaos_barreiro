@@ -30,4 +30,6 @@ credenciais_irmaos_barreiro.txt
 *senha*.txt
 *.log
 COISAS IMPORTANTES
-prompts
+# Scripts SQL com usuários/dados reais (manter fora do repositório)
+backend/seeds/*.sql
+*.dump

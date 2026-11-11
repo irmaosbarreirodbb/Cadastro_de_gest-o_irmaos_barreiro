@@ -6,6 +6,7 @@ from sqlalchemy import func
 from app.core.database import get_db
 from app.core.encryption import encrypt_val, decrypt_val
 from app.models.diarista import DiaristaLancamento
+from app.models.recibo import Recibo
 from app.models.usuario import Usuario
 from app.schemas.diarista import DiaristaCreate, DiaristaUpdate, DiaristaOut
 from app.api.deps import get_current_user
@@ -120,6 +121,9 @@ def remover_diarista(
     if not diarista:
         raise HTTPException(status_code=404, detail="Lançamento de diária não encontrado")
     
+    # Desvincula recibos vinculados a este lançamento para preservar o histórico e evitar erro de chave estrangeira
+    db.query(Recibo).filter(Recibo.diarista_id == diarista_id).update({Recibo.diarista_id: None})
+    
     db.delete(diarista)
     db.commit()
     return {"message": "Diarista removido com sucesso"}
@@ -134,6 +138,9 @@ def resetar_diaristas(
     if not data_limpa:
         raise HTTPException(status_code=400, detail="A data de referência deve ser informada obrigatoriamente.")
         
+    subquery = db.query(DiaristaLancamento.id).filter(DiaristaLancamento.data == data_limpa).subquery()
+    db.query(Recibo).filter(Recibo.diarista_id.in_(subquery)).update({Recibo.diarista_id: None}, synchronize_session=False)
+    
     query = db.query(DiaristaLancamento).filter(DiaristaLancamento.data == data_limpa)
     removidos = query.delete(synchronize_session=False)
     db.commit()

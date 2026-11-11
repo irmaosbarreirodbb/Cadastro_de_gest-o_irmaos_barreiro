@@ -9,12 +9,32 @@ from time import monotonic
 
 from fastapi import HTTPException, Request, status
 
+from app.core.config import settings
+
 _requests = defaultdict(deque)
 _lock = Lock()
 
 
+def get_client_ip(request: Request) -> str:
+    """
+    IP real de quem fez a requisição.
+
+    No Railway toda requisição passa pelo proxy de borda, então request.client.host
+    é o IP do proxy (igual para todos os usuários) e o limite viraria global:
+    5 senhas erradas de qualquer pessoa travariam o login da empresa inteira.
+    O Railway informa o IP do visitante no cabeçalho X-Real-IP
+    (docs.railway.com/networking/public-networking/specs-and-limits).
+    Em desenvolvimento o cabeçalho é ignorado, pois não há proxy para preenchê-lo.
+    """
+    if settings.ENVIRONMENT != "development":
+        real_ip = (request.headers.get("x-real-ip") or "").strip()
+        if real_ip:
+            return real_ip
+    return request.client.host if request.client else "unknown"
+
+
 def enforce_rate_limit(request: Request, scope: str, limit: int, window_seconds: int) -> None:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     key = f"{scope}:{client_ip}"
     now = monotonic()
     with _lock:

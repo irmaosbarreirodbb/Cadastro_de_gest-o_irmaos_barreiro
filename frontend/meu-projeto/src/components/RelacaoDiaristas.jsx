@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -21,16 +21,22 @@ import {
   Minus,
   Sparkles,
   AlertCircle,
-  RefreshCw,
   BarChart2,
-  Table,
+  Table as TableIcon,
+  LayoutGrid,
   ChevronDown,
   ChevronUp,
   TrendingUp,
   SlidersHorizontal,
-  CalendarRange
+  CalendarRange,
+  Zap,
+  MoreVertical,
+  X,
+  CreditCard,
+  Truck
 } from 'lucide-react';
 import RelatorioMensalModal from './RelatorioMensalModal';
+import DrawerCadastrarDiarista from './diaristas/DrawerCadastrarDiarista';
 
 export const DIARISTAS_INICIAIS = [];
 
@@ -40,8 +46,8 @@ const MESES = [
 ];
 
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DIAS_SEMANA_ABREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DIAS_SEMANA_COMPLETO = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
 function parseDataLocal(dataStr) {
   if (!dataStr) return new Date();
@@ -77,8 +83,7 @@ function formatarDataExtenso(dataStr) {
   if (!dataStr) return '';
   try {
     const data = parseDataLocal(dataStr);
-    const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-    const diaSem = diasSemana[data.getDay()];
+    const diaSem = DIAS_SEMANA_COMPLETO[data.getDay()];
     const dia = String(data.getDate()).padStart(2, '0');
     const mes = MESES[data.getMonth()];
     const ano = data.getFullYear();
@@ -106,7 +111,9 @@ export default function RelacaoDiaristas({
   dataSelecionada: propDataSelecionada,
   setDataSelecionada: propSetDataSelecionada,
   onNavigateCadastrar, 
+  onAddDiarista,
   onEmitirRecibo, 
+  onToggleStatus,
   onUpdateDiarista, 
   onDeleteDiarista, 
   onResetDiaristas, 
@@ -115,12 +122,16 @@ export default function RelacaoDiaristas({
   const hoje = getHojeStr();
   const hojeDate = new Date();
 
+  // Estados de Filtros e Visualização
   const [busca, setBusca] = useState('');
+  const [abaStatus, setAbaStatus] = useState('todos'); // 'todos' | 'pendentes' | 'pagos'
+  const [visualizacao, setVisualizacao] = useState('tabela'); // 'tabela' | 'cards'
   const [copiadoId, setCopiadoId] = useState(null);
+  const [drawerAberto, setDrawerAberto] = useState(false);
+  const [menuAcoesAberto, setMenuAcoesAberto] = useState(false);
+  const [clonando, setClonando] = useState(false);
 
-  // =========================================================================
-  // ESTADO DO ANO/MÊS/DIA VIGENTE
-  // =========================================================================
+  // Data Padrão
   const getDataPadrao = () => {
     const datas = diaristas.map(d => d.data).filter(Boolean).sort().reverse();
     if (datas.includes(hoje)) return hoje;
@@ -136,25 +147,44 @@ export default function RelacaoDiaristas({
     setInternalData(novaData);
   };
 
-  // Ano vigente selecionado
+  // Ano e Mês selecionados para o calendário avançado
   const dataRefParsed = parseDataLocal(activeData);
   const [anoVigente, setAnoVigente] = useState(dataRefParsed.getFullYear());
-
-  // Mês selecionado no painel de meses (0-11)
   const [mesExpandidoIndex, setMesExpandidoIndex] = useState(dataRefParsed.getMonth());
-
-  // Painel anual/mensal começa RECOLHIDO por padrão para deixar a tela limpa e focada
   const [mostrarSubTabelaMeses, setMostrarSubTabelaMeses] = useState(false);
 
-  // Modal do Relatório Mensal Oficial
+  // Modal do Relatório Mensal
   const [relatorioAberto, setRelatorioAberto] = useState(false);
   const [mesSelecionadoRelatorio, setMesSelecionadoRelatorio] = useState(dataRefParsed.getMonth());
   const [anoSelecionadoRelatorio, setAnoSelecionadoRelatorio] = useState(dataRefParsed.getFullYear());
   const [autoDownloadRelatorio, setAutoDownloadRelatorio] = useState(false);
 
-  // =========================================================================
-  // MAPAS DE CONTAGEM E TOTAIS POR DATA/MÊS
-  // =========================================================================
+  const searchInputRef = useRef(null);
+
+  // Atalhos de teclado (← dia anterior, → próximo dia, N nova diária, / busca)
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        diaAnterior();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        diaSeguinte();
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        if (onNavigateCadastrar) onNavigateCadastrar();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeData]);
+
+  // Contagem por Data
   const contagemPorData = useMemo(() => {
     const mapa = {};
     diaristas.forEach((d) => {
@@ -163,6 +193,7 @@ export default function RelacaoDiaristas({
     return mapa;
   }, [diaristas]);
 
+  // Total por Data
   const totalPorData = useMemo(() => {
     const mapa = {};
     diaristas.forEach((d) => {
@@ -175,12 +206,12 @@ export default function RelacaoDiaristas({
     return mapa;
   }, [diaristas]);
 
-  // Métricas por Mês: "YYYY-MM" -> { diaristas, diarias, valor }
+  // Métricas por Mês
   const metricasPorMes = useMemo(() => {
     const mapa = {};
     diaristas.forEach((d) => {
       if (!d.data) return;
-      const mesKey = d.data.substring(0, 7); // YYYY-MM
+      const mesKey = d.data.substring(0, 7);
       const val = (parseFloat(d.valor) || 0) * (parseInt(d.diarias, 10) || 1);
       if (!mapa[mesKey]) mapa[mesKey] = { diaristasSet: new Set(), diarias: 0, valor: 0, totalRegistros: 0 };
       mapa[mesKey].diaristasSet.add((d.nome || '').trim().toUpperCase());
@@ -200,52 +231,31 @@ export default function RelacaoDiaristas({
     return resultado;
   }, [diaristas]);
 
-  // Datas disponíveis (com lançamentos)
+  // Datas disponíveis
   const datasDisponiveis = useMemo(() => {
     const set = new Set();
     diaristas.forEach(d => { if (d.data) set.add(d.data); });
     return Array.from(set).sort().reverse();
   }, [diaristas]);
 
-  // Anos disponíveis
-  const anosDisponiveis = useMemo(() => {
-    const anos = new Set([hojeDate.getFullYear(), anoVigente]);
-    diaristas.forEach(d => {
-      if (d.data) anos.add(parseInt(d.data.split('-')[0], 10));
-    });
-    return Array.from(anos).sort((a, b) => b - a);
-  }, [diaristas, anoVigente]);
-
-  // Dias do mês expandido que têm lançamentos
-  const diasDoMesExpandido = useMemo(() => {
-    const mesStr = String(mesExpandidoIndex + 1).padStart(2, '0');
-    const prefixo = `${anoVigente}-${mesStr}`;
-    const dias = [];
-    const totalDias = new Date(anoVigente, mesExpandidoIndex + 1, 0).getDate();
-    for (let d = 1; d <= totalDias; d++) {
-      const diaStr = String(d).padStart(2, '0');
-      const dataStr = `${prefixo}-${diaStr}`;
-      dias.push({
-        dia: d,
-        dataStr,
-        temLancamento: !!contagemPorData[dataStr],
-        qtd: contagemPorData[dataStr] || 0,
-        valor: totalPorData[dataStr]?.valor || 0,
-        diarias: totalPorData[dataStr]?.diarias || 0,
-        primeiroDiaSemana: new Date(anoVigente, mesExpandidoIndex, 1).getDay(),
-      });
-    }
-    return dias;
-  }, [anoVigente, mesExpandidoIndex, contagemPorData, totalPorData]);
+  // Última data com diaristas anterior à data ativa (para o Smart Clone)
+  const ultimaDataComDiaristas = useMemo(() => {
+    return datasDisponiveis.find(d => d < activeData) || datasDisponiveis[0] || null;
+  }, [datasDisponiveis, activeData]);
 
   // Diaristas do dia ativo
   const diaristasDoDia = useMemo(() => {
     return diaristas.filter(item => item.data === activeData);
   }, [diaristas, activeData]);
 
-  // Lista filtrada dentro do dia ativo
+  // Lista Filtrada por Busca e Abas (Todos / Pendentes / Pagos)
   const listaFiltrada = useMemo(() => {
     return diaristasDoDia.filter((item) => {
+      // Filtro de aba
+      if (abaStatus === 'pendentes' && item.pago) return false;
+      if (abaStatus === 'pagos' && !item.pago) return false;
+
+      // Filtro de busca
       const termo = busca.toLowerCase().trim();
       if (!termo) return true;
       return (
@@ -255,32 +265,58 @@ export default function RelacaoDiaristas({
         (item.pix && item.pix.toLowerCase().includes(termo))
       );
     });
-  }, [diaristasDoDia, busca]);
+  }, [diaristasDoDia, busca, abaStatus]);
 
-  const totalDiariasQtd = listaFiltrada.reduce((acc, curr) => acc + (parseInt(curr.diarias, 10) || 1), 0);
-  const totalValorGeral = listaFiltrada.reduce((acc, curr) => acc + ((parseFloat(curr.valor) || 0) * (parseInt(curr.diarias, 10) || 1)), 0);
+  // Totais do dia ativo
+  const totalDiariasQtd = diaristasDoDia.reduce((acc, curr) => acc + (parseInt(curr.diarias, 10) || 1), 0);
+  const totalValorGeral = diaristasDoDia.reduce((acc, curr) => {
+    const val = parseFloat(curr.valor) || 0;
+    const qtd = parseInt(curr.diarias, 10) || 1;
+    return acc + (val * qtd);
+  }, 0);
 
-  // =========================================================================
-  // HANDLERS
-  // =========================================================================
-  function handleCopiarPix(pix, id) {
-    if (!pix) return;
-    navigator.clipboard.writeText(pix);
-    setCopiadoId(id);
-    setTimeout(() => setCopiadoId(null), 2000);
-  }
+  const totalValorPago = diaristasDoDia.reduce((acc, curr) => {
+    if (!curr.pago) return acc;
+    const val = parseFloat(curr.valor) || 0;
+    const qtd = parseInt(curr.diarias, 10) || 1;
+    return acc + (val * qtd);
+  }, 0);
 
-  function handlePrint() {
-    window.print();
-  }
+  const totalValorPendente = totalValorGeral - totalValorPago;
+  const qtdPagos = diaristasDoDia.filter(d => d.pago).length;
+  const qtdPendentes = diaristasDoDia.length - qtdPagos;
 
-  function handleMudarDiarias(item, delta) {
-    if (!onUpdateDiarista) return;
-    const atual = parseInt(item.diarias, 10) || 1;
-    const novaQtd = Math.max(1, atual + delta);
-    onUpdateDiarista({ ...item, diarias: novaQtd });
-  }
+  // Fita de 7 Dias da Semana Atual
+  const diasDaSemanaStrip = useMemo(() => {
+    const dataRef = parseDataLocal(activeData);
+    const diaSemanaIndex = dataRef.getDay(); // 0 = Domingo, 1 = Segunda ...
+    
+    // Calcula o início da semana (Segunda-feira como padrão operacional)
+    const diffParaSegunda = diaSemanaIndex === 0 ? -6 : 1 - diaSemanaIndex;
+    const dias = [];
 
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(dataRef);
+      d.setDate(dataRef.getDate() + diffParaSegunda + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const diaNum = String(d.getDate()).padStart(2, '0');
+      const dataIso = `${y}-${m}-${diaNum}`;
+
+      dias.push({
+        dataIso,
+        diaNumero: diaNum,
+        diaSemanaAbrev: DIAS_SEMANA_ABREV[d.getDay()],
+        isHoje: dataIso === hoje,
+        isAtivo: dataIso === activeData,
+        qtdDiaristas: contagemPorData[dataIso] || 0,
+        temLancamento: !!contagemPorData[dataIso]
+      });
+    }
+    return dias;
+  }, [activeData, contagemPorData, hoje]);
+
+  // Navegação
   function diaAnterior() {
     const novaData = somarDias(activeData, -1);
     setActiveData(novaData);
@@ -304,20 +340,15 @@ export default function RelacaoDiaristas({
     setAnoVigente(d.getFullYear());
   }
 
-  function handleSelecionarDiaDoMes(dataStr) {
-    setActiveData(dataStr);
-    const d = parseDataLocal(dataStr);
-    setMesExpandidoIndex(d.getMonth());
-    setAnoVigente(d.getFullYear());
+  function handleCopiarPix(pix, id) {
+    if (!pix) return;
+    navigator.clipboard.writeText(pix);
+    setCopiadoId(id);
+    setTimeout(() => setCopiadoId(null), 2000);
   }
 
-  function handleSelecionarMes(mesIdx) {
-    setMesExpandidoIndex(mesIdx);
-    const d = parseDataLocal(activeData);
-    const mesStr = String(mesIdx + 1).padStart(2, '0');
-    const prefixo = `${anoVigente}-${mesStr}`;
-    const diaAtual = d.getFullYear() === anoVigente && d.getMonth() === mesIdx ? activeData : `${prefixo}-01`;
-    setActiveData(diaAtual);
+  function handlePrint() {
+    window.print();
   }
 
   function handleAbrirRelatorio(mesIdx, autoDownload = false) {
@@ -326,13 +357,58 @@ export default function RelacaoDiaristas({
     setAnoSelecionadoRelatorio(anoVigente);
     setAutoDownloadRelatorio(autoDownload);
     setRelatorioAberto(true);
+    setMenuAcoesAberto(false);
+  }
+
+  // Smart Clone: Clonar diaristas da data anterior
+  async function handleClonarEquipeAnterior() {
+    if (!ultimaDataComDiaristas) return;
+    const diaristasParaClonar = diaristas.filter(d => d.data === ultimaDataComDiaristas);
+    if (diaristasParaClonar.length === 0) return;
+
+    if (!window.confirm(`Deseja replicar os ${diaristasParaClonar.length} diaristas de ${formatarDataBR(ultimaDataComDiaristas)} para ${formatarDataBR(activeData)}?`)) {
+      return;
+    }
+
+    setClonando(true);
+    try {
+      for (const item of diaristasParaClonar) {
+        const payload = {
+          nome: item.nome,
+          profissao: item.motorista || item.profissao || 'Diarista Geral',
+          motorista: item.motorista || item.profissao || 'Diarista Geral',
+          data: activeData,
+          valor_diaria: item.valor,
+          valor: item.valor,
+          quantidade_diarias: item.diarias || 1,
+          diarias: item.diarias || 1,
+          valor_total: (parseFloat(item.valor) || 0) * (parseInt(item.diarias, 10) || 1),
+          total: (parseFloat(item.valor) || 0) * (parseInt(item.diarias, 10) || 1),
+          tipo_pix: item.tipoPix || 'cpf',
+          tipoPix: item.tipoPix || 'cpf',
+          chave_pix: item.pix || 'Não informada',
+          pix: item.pix || 'Não informada',
+          observacoes: item.observacoes || '',
+          pago: false
+        };
+
+        if (onAddDiarista) {
+          await onAddDiarista(payload);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao replicar equipe:', err);
+      alert('Houve um problema ao replicar alguns registros.');
+    } finally {
+      setClonando(false);
+    }
   }
 
   const isHoje = activeData === hoje;
   const totalLancamentosAno = Object.values(metricasPorMes).reduce((acc, m) => acc + (m.totalRegistros || 0), 0);
 
   return (
-    <div className="space-y-6 w-full animate-fadeIn">
+    <div className="space-y-4 w-full animate-fadeIn pb-12">
 
       {/* Modal do Relatório Mensal Oficial */}
       <RelatorioMensalModal
@@ -347,133 +423,227 @@ export default function RelacaoDiaristas({
         autoDownload={autoDownloadRelatorio}
       />
 
+      {/* Drawer Lateral para Cadastro Rápido de Nova Diária */}
+      <DrawerCadastrarDiarista
+        isOpen={drawerAberto}
+        onClose={() => setDrawerAberto(false)}
+        dataPadrao={activeData}
+        onSalvarDiarista={onAddDiarista}
+        diaristasExistentes={diaristas}
+      />
+
       {/* ================================================================= */}
-      {/* 1. CABEÇALHO PRINCIPAL UNIFICADO & ELEGANTE                       */}
+      {/* 1. COCKPIT EXECUTIVO UNIFICADO (HEADER + MÉTRICAS + AÇÕES)         */}
       {/* ================================================================= */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-5 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-5 no-print">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-3 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition-all shadow-xs cursor-pointer group shrink-0"
-            title="Voltar ao Menu Principal"
-          >
-            <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
-          </button>
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-100 text-red-700 text-xs font-black uppercase tracking-wider mb-1.5 shadow-2xs">
-              <Sparkles className="w-3.5 h-3.5 text-red-600" />
-              <span>Controle Diário de Pagamentos</span>
+      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-4 sm:p-6 no-print">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          
+          {/* Lado Esquerdo: Voltar + Título Compacto */}
+          <div className="flex items-center gap-3.5">
+            <button
+              onClick={onBack}
+              className="p-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition-all shadow-2xs cursor-pointer group shrink-0"
+              title="Voltar ao Painel Geral"
+            >
+              <ArrowLeft className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" />
+            </button>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-zinc-950 tracking-tight">
+                  Relação de Diaristas
+                </h1>
+                <span className="hidden sm:inline-flex text-[10px] bg-red-100 text-red-700 font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  Controle Diário
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 font-medium">
+                Gestão ágil de presença, pagamentos via PIX e emissão de recibos.
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
-              Relação de Diaristas
-            </h1>
-            <p className="text-xs text-zinc-500 font-medium mt-0.5">
-              Gestão de diárias, fechamento de pagamentos e emissão de recibos oficiais.
-            </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-          {/* Botão Relatório Mensal (PDF) */}
-          <button
-            id="btn-gerar-relatorio-mensal"
-            onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border border-zinc-200 hover:border-zinc-300"
-            title={`Visualizar Relatório Mensal em PDF`}
-          >
-            <BarChart2 className="w-4 h-4 text-emerald-600" />
-            <span>Relatório Mensal</span>
-          </button>
+          {/* Centro/Direita: Pílulas de Métricas Integradas no Cabeçalho */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            
+            {/* Pílula 1: Diaristas no Dia */}
+            <div className="flex items-center gap-2 bg-zinc-100/90 hover:bg-zinc-100 px-3.5 py-2 rounded-2xl border border-zinc-200/80 shadow-2xs transition">
+              <Users className="w-4 h-4 text-blue-600" />
+              <div className="text-xs">
+                <span className="font-extrabold text-zinc-900">{diaristasDoDia.length}</span>
+                <span className="text-zinc-500 font-medium ml-1">diarista{diaristasDoDia.length === 1 ? '' : 's'}</span>
+              </div>
+            </div>
 
-          {/* Botão Imprimir Dia */}
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white hover:bg-zinc-100 text-zinc-800 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border border-zinc-200 hover:border-zinc-300"
-            title="Imprimir Relação do Dia Atual"
-          >
-            <Printer className="w-4 h-4 text-zinc-600" />
-            <span>Imprimir</span>
-          </button>
+            {/* Pílula 2: Diárias Computadas */}
+            <div className="flex items-center gap-2 bg-zinc-100/90 hover:bg-zinc-100 px-3.5 py-2 rounded-2xl border border-zinc-200/80 shadow-2xs transition">
+              <Clock className="w-4 h-4 text-amber-600" />
+              <div className="text-xs">
+                <span className="font-extrabold text-zinc-900">{totalDiariasQtd}</span>
+                <span className="text-zinc-500 font-medium ml-1">diária{totalDiariasQtd === 1 ? '' : 's'}</span>
+              </div>
+            </div>
 
-          {/* Botão CADASTRAR DIARISTA */}
-          <button
-            id="btn-cadastrar-diarista"
-            onClick={onNavigateCadastrar}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs sm:text-sm font-black shadow-lg shadow-red-600/30 hover:shadow-red-600/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer whitespace-nowrap"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Cadastrar Diarista</span>
-          </button>
+            {/* Pílula 3: Total Financeiro Consolidado */}
+            <div className="flex items-center gap-2 bg-gradient-to-r from-zinc-900 to-zinc-950 text-white px-4 py-2 rounded-2xl border border-zinc-800 shadow-md">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <div className="text-xs">
+                <span className="text-zinc-400 font-bold mr-1">Total:</span>
+                <span className="font-black text-emerald-400 text-sm">
+                  R$ {formatarMoeda(totalValorGeral)}
+                </span>
+                {diaristasDoDia.length > 0 && (
+                  <span className="text-[10px] text-zinc-400 font-medium ml-1.5 hidden md:inline">
+                    (R$ {formatarMoeda(totalValorPendente)} a pagar)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Ação Primária: + Cadastrar Diarista (Busca no banco de dados e autopreenchimento) */}
+            <button
+              id="btn-cadastrar-diarista"
+              onClick={onNavigateCadastrar}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs sm:text-sm font-black shadow-lg shadow-red-600/30 hover:shadow-red-600/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer whitespace-nowrap"
+              title="Cadastrar Diarista com busca no banco de dados e seleção automática (Atalho: N)"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Cadastrar Diarista</span>
+            </button>
+
+            {/* Menu Dropdown de Ações Secundárias */}
+            <div className="relative">
+              <button
+                onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
+                className="p-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition cursor-pointer border border-zinc-200/80 shadow-2xs"
+                title="Mais opções e relatórios"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {menuAcoesAberto && (
+                <div 
+                  className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-zinc-200 p-2 z-30 divide-y divide-zinc-100 animate-fadeIn"
+                  onMouseLeave={() => setMenuAcoesAberto(false)}
+                >
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setMenuAcoesAberto(false);
+                        setDrawerAberto(true);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4 text-red-600" />
+                      <span>Lançamento Rápido (Gaveta)</span>
+                    </button>
+                    <button
+                      onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
+                    >
+                      <BarChart2 className="w-4 h-4 text-emerald-600" />
+                      <span>Relatório Mensal PDF</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuAcoesAberto(false);
+                        handlePrint();
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4 text-zinc-600" />
+                      <span>Imprimir Folha do Dia</span>
+                    </button>
+                  </div>
+
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setMenuAcoesAberto(false);
+                        if (onNavigateCadastrar) onNavigateCadastrar();
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 flex items-center gap-2.5 transition cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4 text-zinc-500" />
+                      <span>Cadastro Completo (Tela Cheia)</span>
+                    </button>
+                  </div>
+
+                  {onResetDiaristas && (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => {
+                          setMenuAcoesAberto(false);
+                          onResetDiaristas();
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                        <span>Limpar Relação de Hoje</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
 
       {/* ================================================================= */}
-      {/* 2. BARRA DE CONTROLE TEMPORAL (DATA, NAVEGAÇÃO & ATALHOS)        */}
+      {/* 2. FITA TEMPORAL DINÂMICA (STRIP SEMANAL + CALENDÁRIO ÁGIL)       */}
       {/* ================================================================= */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-5 sm:p-6 space-y-4 no-print">
-        
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-3.5 sm:p-4 no-print space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           
-          {/* Lado Esquerdo: Controles Rápidos de Dia (<, Hoje, >) + Data Ativa */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
-            <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-2xl border border-zinc-200/80 shadow-2xs">
-              <button
-                onClick={diaAnterior}
-                className="p-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition cursor-pointer shadow-2xs"
-                title="Dia Anterior"
+          {/* Navegação Rápida: Botões < Hoje > */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={diaAnterior}
+              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition cursor-pointer"
+              title="Dia anterior (Seta Esquerda ←)"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={irParaHoje}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                isHoje
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+              }`}
+              title="Ir para hoje"
+            >
+              Hoje
+            </button>
+
+            <button
+              onClick={diaSeguinte}
+              className="p-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition cursor-pointer"
+              title="Próximo dia (Seta Direita →)"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div className="h-5 w-px bg-zinc-200 mx-1 hidden sm:block" />
+
+            {/* Data por Extenso com Seletor Direto */}
+            <div className="relative flex items-center gap-2 bg-zinc-50 border border-zinc-200 px-3 py-1.5 rounded-xl">
+              <span className="text-xs font-black text-zinc-900 tracking-tight">
+                {formatarDataBR(activeData)}
+              </span>
+              <span className="text-[11px] text-zinc-500 font-semibold capitalize hidden sm:inline">
+                • {formatarDataExtenso(activeData).split(',')[0]}
+              </span>
+
+              {/* Input Nativo Oculto para Escolher Qualquer Data */}
+              <label 
+                className="p-1 rounded-lg hover:bg-zinc-200 text-zinc-600 transition cursor-pointer relative"
+                title="Escolher qualquer outra data no calendário"
               >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <button
-                onClick={irParaHoje}
-                className={`px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                  isHoje
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-white hover:bg-zinc-200 text-zinc-700'
-                }`}
-                title="Ir para o dia de hoje"
-              >
-                Hoje
-              </button>
-
-              <button
-                onClick={diaSeguinte}
-                className="p-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-700 hover:text-zinc-950 transition cursor-pointer shadow-2xs"
-                title="Próximo Dia"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Destaque Visual do Dia Selecionado */}
-            <div className="relative flex items-center gap-3 bg-zinc-50 border border-zinc-200 px-4 py-2.5 rounded-2xl shadow-2xs">
-              <div className="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <CalendarIcon className="w-4 h-4" />
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-zinc-900 tracking-tight">
-                    {formatarDataBR(activeData)}
-                  </span>
-                  {isHoje && (
-                    <span className="text-[10px] bg-red-100 text-red-700 font-black px-2 py-0.5 rounded-full uppercase">
-                      Hoje
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] text-zinc-500 font-semibold capitalize">
-                  {formatarDataExtenso(activeData).split(',')[0]}
-                </div>
-              </div>
-
-              {/* Input Nativo de Data Oculto sobre o botão */}
-              <label
-                className="ml-2 p-2 rounded-xl bg-white hover:bg-red-50 text-zinc-600 hover:text-red-600 border border-zinc-200 transition cursor-pointer relative shadow-2xs"
-                title="Escolher data específica no calendário"
-              >
-                <CalendarDays className="w-4 h-4" />
+                <CalendarDays className="w-3.5 h-3.5 text-zinc-600" />
                 <input
                   type="date"
                   value={activeData}
@@ -491,110 +661,83 @@ export default function RelacaoDiaristas({
             </div>
           </div>
 
-          {/* Lado Direito: Botão para Expandir / Recolher Calendário Geral */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setMostrarSubTabelaMeses(!mostrarSubTabelaMeses)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer border shadow-2xs ${
-                mostrarSubTabelaMeses
-                  ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200'
-              }`}
-              title="Abrir visão geral de todos os meses e calendário"
-            >
-              <CalendarRange className="w-4 h-4 text-red-500" />
-              <span>Visão Anual & Calendário</span>
-              {mostrarSubTabelaMeses ? (
-                <ChevronUp className="w-4 h-4 ml-1" />
-              ) : (
-                <ChevronDown className="w-4 h-4 ml-1" />
-              )}
-            </button>
+          {/* Fita de 7 Dias da Semana Atual (Interativa e fluida) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
+            {diasDaSemanaStrip.map((item) => (
+              <button
+                key={item.dataIso}
+                onClick={() => {
+                  setActiveData(item.dataIso);
+                  const d = parseDataLocal(item.dataIso);
+                  setMesExpandidoIndex(d.getMonth());
+                  setAnoVigente(d.getFullYear());
+                }}
+                className={`relative px-3 py-1.5 rounded-2xl text-center transition-all cursor-pointer border flex flex-col items-center min-w-[54px] shrink-0 ${
+                  item.isAtivo
+                    ? 'bg-gradient-to-b from-red-600 to-red-700 text-white border-red-600 shadow-md font-black scale-105 z-10'
+                    : item.temLancamento
+                    ? 'bg-red-50/70 hover:bg-red-100 text-red-950 border-red-200 font-bold'
+                    : item.isHoje
+                    ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border-zinc-300 font-bold'
+                    : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-600 border-zinc-200'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-black tracking-tight leading-none">
+                  {item.diaSemanaAbrev}
+                </span>
+                <span className="text-xs font-black leading-tight mt-0.5">
+                  {item.diaNumero}
+                </span>
+
+                {/* Badge de Diaristas no Dia */}
+                {item.temLancamento && (
+                  <span className={`text-[9px] px-1.5 rounded-full font-black mt-0.5 leading-none ${
+                    item.isAtivo ? 'bg-white/30 text-white' : 'bg-red-200/80 text-red-800'
+                  }`}>
+                    {item.qtdDiaristas}d
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
+
+          {/* Botão para Expandir / Recolher Calendário Geral dos 12 Meses */}
+          <button
+            onClick={() => setMostrarSubTabelaMeses(!mostrarSubTabelaMeses)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shrink-0 ${
+              mostrarSubTabelaMeses
+                ? 'bg-zinc-900 text-white border-zinc-900'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border-zinc-200'
+            }`}
+            title="Abrir navegação por meses e visão anual completa"
+          >
+            <CalendarRange className="w-3.5 h-3.5 text-red-500" />
+            <span className="hidden sm:inline">Visão Anual</span>
+            {mostrarSubTabelaMeses ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
         </div>
 
-        {/* Linha de Atalhos Rápidos para Dias com Lançamentos */}
-        {datasDisponiveis.length > 0 && (
-          <div className="pt-3 border-t border-zinc-100 flex items-center gap-2.5 overflow-x-auto pb-1 text-xs">
-            <span className="font-bold text-zinc-400 uppercase tracking-wider text-[11px] whitespace-nowrap shrink-0 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Dias com Lançamentos:</span>
-            </span>
-
-            <div className="flex items-center gap-1.5 flex-nowrap">
-              {datasDisponiveis.map((data) => {
-                const count = contagemPorData[data] || 0;
-                const isSelected = activeData === data;
-                return (
-                  <button
-                    key={data}
-                    onClick={() => {
-                      setActiveData(data);
-                      const d = parseDataLocal(data);
-                      setMesExpandidoIndex(d.getMonth());
-                      setAnoVigente(d.getFullYear());
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer border text-xs ${
-                      isSelected
-                        ? 'bg-red-600 text-white border-red-600 shadow-xs'
-                        : 'bg-zinc-50 hover:bg-red-50 text-zinc-700 hover:text-red-700 border-zinc-200'
-                    }`}
-                  >
-                    <span>{formatarDataBR(data)}</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                      isSelected ? 'bg-white/25 text-white' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================= */}
-        {/* PAINEL EXPANSÍVEL: VISÃO ANUAL (12 MESES) & GRADE MENSAL       */}
-        {/* ============================================================= */}
+        {/* PAINEL RECOLHÍVEL: VISÃO ANUAL (12 MESES) */}
         {mostrarSubTabelaMeses && (
-          <div className="mt-4 pt-4 border-t border-zinc-200/80 space-y-4 animate-fadeIn">
-            <div className="bg-zinc-900 text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">
-                    Navegação Anual
-                  </span>
-                  <span className="text-sm font-black">
-                    Exercício de {anoVigente} ({totalLancamentosAno} lançamentos registrados)
-                  </span>
-                </div>
+          <div className="pt-3 border-t border-zinc-200/80 animate-fadeIn space-y-3">
+            <div className="flex items-center justify-between bg-zinc-900 text-white p-3 rounded-2xl">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-black">
+                  Exercício de {anoVigente} ({totalLancamentosAno} diárias registradas)
+                </span>
               </div>
-
-              {/* Seletor de Ano */}
-              <div className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700 self-start sm:self-auto">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setAnoVigente(a => a - 1)}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
-                  title="Ano anterior"
+                  className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                <select
-                  value={anoVigente}
-                  onChange={(e) => setAnoVigente(parseInt(e.target.value, 10))}
-                  className="bg-transparent text-white text-xs font-black focus:outline-none cursor-pointer min-w-[56px] text-center"
-                >
-                  {anosDisponiveis.map(a => (
-                    <option key={a} value={a} className="bg-zinc-900">{a}</option>
-                  ))}
-                </select>
+                <span className="text-xs font-black px-2">{anoVigente}</span>
                 <button
                   onClick={() => setAnoVigente(a => a + 1)}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition cursor-pointer"
-                  title="Próximo ano"
+                  className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -602,383 +745,320 @@ export default function RelacaoDiaristas({
             </div>
 
             {/* Grid dos 12 Meses */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
               {MESES.map((nomeMes, mesIdx) => {
                 const mesStr = String(mesIdx + 1).padStart(2, '0');
                 const chave = `${anoVigente}-${mesStr}`;
                 const metrics = metricasPorMes[chave];
                 const isSelecionado = mesExpandidoIndex === mesIdx;
-                const isMesHoje = hojeDate.getFullYear() === anoVigente && hojeDate.getMonth() === mesIdx;
 
                 return (
                   <button
                     key={nomeMes}
-                    onClick={() => handleSelecionarMes(mesIdx)}
-                    className={`relative rounded-2xl border p-3 text-left transition-all cursor-pointer ${
+                    onClick={() => {
+                      setMesExpandidoIndex(mesIdx);
+                      const prefixo = `${anoVigente}-${mesStr}`;
+                      setActiveData(`${prefixo}-01`);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
                       isSelecionado
-                        ? 'bg-red-600 border-red-600 text-white shadow-md'
+                        ? 'bg-red-600 text-white border-red-600 shadow-sm'
                         : metrics
-                        ? 'bg-white border-red-200 hover:border-red-400 hover:bg-red-50/40 text-zinc-900 shadow-2xs'
-                        : isMesHoje
-                        ? 'bg-zinc-100 border-zinc-300 text-zinc-700'
-                        : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:bg-white'
+                        ? 'bg-red-50/60 hover:bg-red-100/80 border-red-200 text-zinc-900'
+                        : 'bg-zinc-50 hover:bg-zinc-100 border-zinc-200 text-zinc-600'
                     }`}
                   >
-                    {isMesHoje && !isSelecionado && (
-                      <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 block" />
-                    )}
-
-                    <div className={`text-[10px] font-black uppercase tracking-wider mb-0.5 ${isSelecionado ? 'text-red-100' : 'text-zinc-400'}`}>
-                      {MESES_ABREV[mesIdx]}
-                    </div>
-                    <div className={`text-xs font-black ${isSelecionado ? 'text-white' : 'text-zinc-800'}`}>
-                      {nomeMes}
-                    </div>
-
-                    {metrics ? (
-                      <div className="mt-1.5 space-y-0.5 text-[10px]">
-                        <div className={`font-bold ${isSelecionado ? 'text-red-100' : 'text-red-700'}`}>
-                          R$ {formatarMoeda(metrics.valor)}
-                        </div>
-                        <div className={isSelecionado ? 'text-red-200' : 'text-zinc-500'}>
-                          {metrics.totalRegistros} reg. ({metrics.diarias} diárias)
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={`mt-1.5 text-[10px] ${isSelecionado ? 'text-red-200' : 'text-zinc-400'} italic`}>
-                        Sem registros
-                      </div>
-                    )}
+                    <span className="text-xs font-black block">{MESES_ABREV[mesIdx]}</span>
+                    <span className="text-[10px] block font-medium opacity-80">
+                      {metrics ? `${metrics.diarias} diárias` : 'Sem registros'}
+                    </span>
                   </button>
                 );
               })}
-            </div>
-
-            {/* Sub-tabela do Mês Selecionado (Grade de Dias) */}
-            <div className="rounded-2xl border border-zinc-200 overflow-hidden bg-white shadow-sm">
-              <div className="bg-zinc-100 text-zinc-800 px-4 py-2.5 flex items-center justify-between border-b border-zinc-200">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-red-600" />
-                  <span className="text-xs font-black">
-                    Dias de {MESES[mesExpandidoIndex]} de {anoVigente}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-300 transition cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5 text-red-600" />
-                  <span>Gerar PDF do Mês</span>
-                </button>
-              </div>
-
-              <div className="p-3">
-                <div className="grid grid-cols-7 gap-1 mb-1 text-center text-[10px] font-black text-zinc-400 uppercase">
-                  {DIAS_SEMANA.map(ds => (
-                    <div key={ds} className="py-0.5">{ds}</div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-1">
-                  {Array.from({ length: diasDoMesExpandido[0]?.primeiroDiaSemana || 0 }).map((_, i) => (
-                    <div key={`espaco-${i}`} className="h-10 sm:h-12 rounded-xl" />
-                  ))}
-
-                  {diasDoMesExpandido.map((item) => {
-                    const isSelecionado = activeData === item.dataStr;
-                    const isItemHoje = item.dataStr === hoje;
-
-                    return (
-                      <button
-                        key={item.dataStr}
-                        onClick={() => handleSelecionarDiaDoMes(item.dataStr)}
-                        className={`h-10 sm:h-12 rounded-xl flex flex-col items-center justify-center relative transition-all cursor-pointer border text-xs ${
-                          isSelecionado
-                            ? 'bg-red-600 text-white border-red-600 shadow-xs font-black'
-                            : item.temLancamento
-                            ? 'bg-red-50 hover:bg-red-100 text-red-950 border-red-200 font-black shadow-2xs'
-                            : isItemHoje
-                            ? 'bg-zinc-100 text-zinc-950 border-zinc-400 font-black'
-                            : 'bg-white hover:bg-zinc-50 text-zinc-600 border-zinc-200'
-                        }`}
-                        title={item.temLancamento ? `${item.qtd} diarista(s) — R$ ${formatarMoeda(item.valor)}` : formatarDataBR(item.dataStr)}
-                      >
-                        <span className="font-black text-xs leading-none">{item.dia}</span>
-                        {item.temLancamento && (
-                          <span className={`text-[9px] font-bold leading-none mt-1 ${isSelecionado ? 'text-red-100' : 'text-red-600'}`}>
-                            {item.qtd} d.
-                          </span>
-                        )}
-                        {isItemHoje && !isSelecionado && (
-                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* ================================================================= */}
-      {/* 3. TOTALIZADORES EXECUTIVOS DO DIA ATIVO                         */}
+      {/* 3. BARRA DE CONTROLE DA LISTA (TABS + BUSCA + MODO DE VISÃO)       */}
       {/* ================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
-        {/* Diaristas no Dia */}
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-            <Users className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
-              Diaristas no Dia
-            </span>
-            <div className="text-2xl font-black text-zinc-900">
-              {diaristasDoDia.length}
-              {busca && listaFiltrada.length !== diaristasDoDia.length && (
-                <span className="text-xs font-semibold text-zinc-400 ml-1.5">
-                  ({listaFiltrada.length} filtrado{listaFiltrada.length === 1 ? '' : 's'})
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Total de Diárias */}
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 border border-zinc-200/80 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-            <Clock className="w-6 h-6 text-amber-600" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
-              Diárias Computadas
-            </span>
-            <div className="text-2xl font-black text-zinc-900">
-              {totalDiariasQtd}{' '}
-              <span className="text-xs font-semibold text-zinc-400">diária(s)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Total a Pagar no Dia */}
-        <div className="bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 text-white rounded-3xl p-5 border border-zinc-800 shadow-xl flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
-            <DollarSign className="w-6 h-6 text-emerald-400" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
-              Total a Pagar no Dia
-            </span>
-            <div className="text-2xl font-black text-emerald-400">
-              R$ {formatarMoeda(totalValorGeral)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ================================================================= */}
-      {/* 4. TABELA PRINCIPAL DA RELAÇÃO DE DIARISTAS DO DIA               */}
-      {/* ================================================================= */}
-      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 overflow-hidden w-full no-print">
+      <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 p-3.5 sm:p-4 no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         
-        {/* Barra Superior da Tabela: Título do Dia + Busca Integrada */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-zinc-50 to-zinc-100/80 border-b border-zinc-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-2xs">
-              <CalendarIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-black text-zinc-900 tracking-tight">
-                Lançamentos de {formatarDataBR(activeData)}
-              </h2>
-              <span className="text-xs text-zinc-500 font-medium">
-                {formatarDataExtenso(activeData)}
-              </span>
-            </div>
-          </div>
+        {/* Abas Inteligentes: Todos | A Pagar | Pagos */}
+        <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-2xl border border-zinc-200/80">
+          <button
+            onClick={() => setAbaStatus('todos')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+              abaStatus === 'todos'
+                ? 'bg-white text-zinc-950 shadow-2xs'
+                : 'text-zinc-600 hover:text-zinc-950'
+            }`}
+          >
+            Todos ({diaristasDoDia.length})
+          </button>
 
-          {/* Campo de Busca Rápida */}
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <button
+            onClick={() => setAbaStatus('pendentes')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
+              abaStatus === 'pendentes'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'text-zinc-600 hover:text-amber-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>A Pagar ({qtdPendentes})</span>
+          </button>
+
+          <button
+            onClick={() => setAbaStatus('pagos')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
+              abaStatus === 'pagos'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-zinc-600 hover:text-emerald-700'
+            }`}
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Pagos ({qtdPagos})</span>
+          </button>
+        </div>
+
+        {/* Lado Direito: Busca Instantânea + Alternador de Visualização */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nome, função ou PIX..."
-              className="w-full pl-10 pr-3 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-xs sm:text-sm font-medium text-zinc-900 placeholder:text-zinc-400 bg-white shadow-2xs"
+              placeholder="Buscar diarista, caminhão, PIX..."
+              className="w-full pl-8 pr-7 py-2 rounded-xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-xs font-medium text-zinc-900 bg-white placeholder:text-zinc-400 transition"
             />
+            {busca && (
+              <button
+                onClick={() => setBusca('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Toggle Tabela / Cards */}
+          <div className="flex items-center gap-0.5 bg-zinc-100 p-1 rounded-xl border border-zinc-200/80 shrink-0">
+            <button
+              onClick={() => setVisualizacao('tabela')}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                visualizacao === 'tabela' ? 'bg-white text-zinc-950 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'
+              }`}
+              title="Visualização em Tabela"
+            >
+              <TableIcon className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setVisualizacao('cards')}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                visualizacao === 'cards' ? 'bg-white text-zinc-950 shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'
+              }`}
+              title="Visualização em Cards"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Tabela de Diaristas */}
-        <div className="w-full overflow-x-auto">
-          <table className="w-full text-left text-sm table-auto">
-            <thead className="bg-zinc-100/90 border-b border-zinc-200 text-zinc-700 text-xs font-black uppercase tracking-wider">
-              <tr>
-                <th className="py-3.5 px-4">Diarista</th>
-                <th className="py-3.5 px-3 text-center">Data</th>
-                <th className="py-3.5 px-3 text-right">Vlr. Diária</th>
-                <th className="py-3.5 px-3 text-center">Qtd. Diárias</th>
-                <th className="py-3.5 px-4 text-right bg-red-50/70 text-red-950 font-black border-x border-red-200/70">
-                  Total do Diarista
-                </th>
-                <th className="py-3.5 px-4">Chave PIX</th>
-                <th className="py-3.5 px-4 text-center no-print">Ações</th>
-              </tr>
-            </thead>
+      </div>
 
-            <tbody className="divide-y divide-zinc-200/80">
-              {listaFiltrada.length === 0 ? (
+      {/* ================================================================= */}
+      {/* 4. ÁREA PRINCIPAL: LISTA / TABELA / CARDS OU EMPTY STATE          */}
+      {/* ================================================================= */}
+      {listaFiltrada.length === 0 ? (
+        /* Empty State Inteligente */
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-8 sm:p-12 text-center shadow-xl border border-zinc-200/80 space-y-4 no-print">
+          <div className="w-16 h-16 rounded-3xl bg-red-50 text-red-600 mx-auto flex items-center justify-center shadow-sm">
+            <Users className="w-8 h-8" />
+          </div>
+
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-base font-black text-zinc-900">
+              Nenhum diarista para {formatarDataBR(activeData)}
+            </h3>
+            <p className="text-xs text-zinc-500">
+              {busca
+                ? 'Nenhum diarista coincide com os termos pesquisados.'
+                : 'Não há registros de diárias lançadas para esta data.'}
+            </p>
+          </div>
+
+          {/* Ações Dinâmicas do Empty State */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+            <button
+              onClick={onNavigateCadastrar}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-black shadow-md shadow-red-600/20 transition cursor-pointer flex items-center gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Cadastrar Diarista em {formatarDataBR(activeData)}</span>
+            </button>
+
+            {/* Smart Clone: Botão inteligente para replicar equipe anterior */}
+            {ultimaDataComDiaristas && diaristasDoDia.length === 0 && !busca && (
+              <button
+                disabled={clonando}
+                onClick={handleClonarEquipeAnterior}
+                className="px-4 py-2.5 rounded-2xl bg-zinc-900 hover:bg-black text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                title={`Replicar todos os diaristas do dia ${formatarDataBR(ultimaDataComDiaristas)} para hoje`}
+              >
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span>
+                  {clonando ? 'Replicando equipe...' : `Repetir equipe de ${formatarDataBR(ultimaDataComDiaristas)}`}
+                </span>
+              </button>
+            )}
+
+            {!isHoje && (
+              <button
+                onClick={irParaHoje}
+                className="px-4 py-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200 transition cursor-pointer"
+              >
+                Ir para Hoje ({formatarDataBR(hoje)})
+              </button>
+            )}
+          </div>
+        </div>
+      ) : visualizacao === 'tabela' ? (
+        /* MODO TABELA MODERNA & ELEGANTE */
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-zinc-200/80 overflow-hidden no-print">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="bg-zinc-100/80 border-b border-zinc-200 text-zinc-700 text-[11px] font-black uppercase tracking-wider">
                 <tr>
-                  <td colSpan="7" className="py-14 text-center text-zinc-500">
-                    <div className="max-w-md mx-auto space-y-4 px-4">
-                      <div className="w-14 h-14 rounded-3xl bg-red-50 text-red-600 mx-auto flex items-center justify-center shadow-xs">
-                        <AlertCircle className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <h4 className="text-base font-black text-zinc-900">
-                          Nenhum diarista para {formatarDataBR(activeData)}
-                        </h4>
-                        <p className="text-xs text-zinc-500 mt-1">
-                          {busca
-                            ? 'Nenhum diarista encontrado com os termos da pesquisa nesta data.'
-                            : `Não há diaristas cadastrados no dia ${formatarDataBR(activeData)}.`}
-                        </p>
-                      </div>
-
-                      {/* Botões de Ação Rápida */}
-                      <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-                        <button
-                          onClick={onNavigateCadastrar}
-                          className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md transition cursor-pointer"
-                        >
-                          + Cadastrar Diarista neste Dia
-                        </button>
-
-                        {!isHoje && (
-                          <button
-                            onClick={irParaHoje}
-                            className="px-4 py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200 transition cursor-pointer"
-                          >
-                            Ir para Hoje ({formatarDataBR(hoje)})
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Sugestão de dias disponíveis */}
-                      {datasDisponiveis.length > 0 && (
-                        <div className="pt-3 border-t border-zinc-100">
-                          <span className="text-[11px] font-bold text-zinc-400 block mb-2">
-                            Ou navegue para um dia com lançamentos existentes:
-                          </span>
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            {datasDisponiveis.slice(0, 5).map((data) => (
-                              <button
-                                key={data}
-                                onClick={() => {
-                                  setActiveData(data);
-                                  const d = parseDataLocal(data);
-                                  setMesExpandidoIndex(d.getMonth());
-                                  setAnoVigente(d.getFullYear());
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-red-50 text-zinc-700 hover:text-red-700 border border-zinc-200 text-[11px] font-bold transition cursor-pointer"
-                              >
-                                {formatarDataBR(data)} ({contagemPorData[data]})
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </td>
+                  <th className="py-3.5 px-4">Diarista & Função</th>
+                  <th className="py-3.5 px-3 text-center">Data</th>
+                  <th className="py-3.5 px-3 text-right">Vlr. Diária</th>
+                  <th className="py-3.5 px-3 text-center">Qtd.</th>
+                  <th className="py-3.5 px-4 text-right bg-red-50/60 text-red-950 font-black border-x border-red-200/50">
+                    Total
+                  </th>
+                  <th className="py-3.5 px-3 text-center">Status Pagamento</th>
+                  <th className="py-3.5 px-4">Chave PIX</th>
+                  <th className="py-3.5 px-4 text-center">Ações</th>
                 </tr>
-              ) : (
-                listaFiltrada.map((item) => {
-                  const qtdDiarias = parseInt(item.diarias, 10) || 1;
-                  const valorUnitario = parseFloat(item.valor) || 0;
-                  const valorTotalDiarista = valorUnitario * qtdDiarias;
+              </thead>
+
+              <tbody className="divide-y divide-zinc-200/70">
+                {listaFiltrada.map((item) => {
+                  const qtd = parseInt(item.diarias, 10) || 1;
+                  const val = parseFloat(item.valor) || 0;
+                  const total = val * qtd;
+                  const inicial = (item.nome || 'D').charAt(0).toUpperCase();
 
                   return (
-                    <tr key={item.id} className="hover:bg-zinc-50/90 transition-colors group">
-                      
-                      {/* Diarista (Nome + Função) */}
-                      <td className="py-3.5 px-4 font-black text-zinc-900 uppercase whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span>{item.nome}</span>
-                        </div>
-                        {(item.motorista || item.profissao) && (
-                          <div className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[10px] font-bold uppercase tracking-wider">
-                            {item.motorista || item.profissao}
+                    <tr 
+                      key={item.id}
+                      className="hover:bg-zinc-50/80 transition-colors group"
+                    >
+                      {/* Diarista com Avatar Moderno */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-zinc-800 to-zinc-700 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                            {inicial}
                           </div>
-                        )}
+                          <div>
+                            <span className="font-black text-zinc-950 block text-xs sm:text-sm uppercase tracking-tight">
+                              {item.nome}
+                            </span>
+                            <span className="text-[11px] text-zinc-500 font-medium flex items-center gap-1">
+                              <Truck className="w-3 h-3 text-zinc-400" />
+                              {item.motorista || item.profissao || 'Diarista Geral'}
+                            </span>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Data */}
-                      <td className="py-3.5 px-3 text-center text-xs font-semibold text-zinc-600 whitespace-nowrap">
+                      <td className="py-3 px-3 text-center text-xs font-semibold text-zinc-600 whitespace-nowrap">
                         {formatarDataBR(item.data)}
                       </td>
 
                       {/* Valor Unitário */}
-                      <td className="py-3.5 px-3 text-right font-semibold text-zinc-700 whitespace-nowrap">
-                        R$ {formatarMoeda(valorUnitario)}
+                      <td className="py-3 px-3 text-right text-xs font-bold text-zinc-700 whitespace-nowrap">
+                        R$ {formatarMoeda(val)}
                       </td>
 
-                      {/* Qtd Diárias (Controle - e +) */}
-                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 bg-zinc-100/90 px-2 py-1 rounded-xl border border-zinc-200 shadow-2xs">
+                      {/* Quantidade de Diárias com Controles Rápidos */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 bg-zinc-100 px-2 py-0.5 rounded-lg border border-zinc-200">
                           {onUpdateDiarista && (
                             <button
-                              type="button"
-                              onClick={() => handleMudarDiarias(item, -1)}
-                              disabled={qtdDiarias <= 1}
-                              className="p-1 rounded-lg text-zinc-500 hover:text-red-600 hover:bg-white disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition no-print"
-                              title="Diminuir quantidade de diárias"
+                              onClick={() => onUpdateDiarista({ ...item, diarias: Math.max(1, qtd - 1) })}
+                              className="text-zinc-400 hover:text-zinc-900 font-bold transition px-1"
+                              title="Diminuir diária"
                             >
-                              <Minus className="w-3 h-3" />
+                              -
                             </button>
                           )}
-                          <span className="font-black text-zinc-900 text-xs px-1.5 min-w-[20px] text-center">
-                            {qtdDiarias}
-                          </span>
+                          <span className="font-black text-zinc-900 text-xs px-1">{qtd}</span>
                           {onUpdateDiarista && (
                             <button
-                              type="button"
-                              onClick={() => handleMudarDiarias(item, 1)}
-                              className="p-1 rounded-lg text-zinc-500 hover:text-emerald-600 hover:bg-white cursor-pointer transition no-print"
-                              title="Aumentar quantidade de diárias"
+                              onClick={() => onUpdateDiarista({ ...item, diarias: qtd + 1 })}
+                              className="text-zinc-400 hover:text-zinc-900 font-bold transition px-1"
+                              title="Aumentar diária"
                             >
-                              <Plus className="w-3 h-3" />
+                              +
                             </button>
                           )}
                         </div>
                       </td>
 
-                      {/* Total do Diarista */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap bg-red-50/40 border-x border-red-200/60">
-                        <div className="font-black text-red-700 text-base tracking-tight">
-                          R$ {formatarMoeda(valorTotalDiarista)}
-                        </div>
-                        {qtdDiarias > 1 && (
-                          <span className="text-[10px] text-zinc-400 block font-semibold">
-                            ({qtdDiarias}x R$ {formatarMoeda(valorUnitario)})
-                          </span>
-                        )}
+                      {/* Total */}
+                      <td className="py-3 px-4 text-right font-black text-red-950 bg-red-50/40 border-x border-red-200/40 text-xs sm:text-sm whitespace-nowrap">
+                        R$ {formatarMoeda(total)}
                       </td>
 
-                      {/* Chave PIX com botão copiar */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition shadow-2xs">
-                          <span>{item.pix || 'Não informado'}</span>
-                          {item.pix && (
+                      {/* Status de Pagamento Clicável (Optimistic UI) */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button
+                          onClick={() => onToggleStatus && onToggleStatus(item.id)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold transition cursor-pointer border ${
+                            item.pago
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                          }`}
+                          title="Clique para alternar o status do pagamento"
+                        >
+                          {item.pago ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Pago</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>A Pagar</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+
+                      {/* Chave PIX com Cópia Rápida */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-zinc-700 truncate max-w-[140px] sm:max-w-[180px]">
+                            {item.pix || '—'}
+                          </span>
+                          {item.pix && item.pix !== 'Não informada' && (
                             <button
                               onClick={() => handleCopiarPix(item.pix, item.id)}
-                              className="p-1 text-zinc-400 hover:text-red-600 transition cursor-pointer no-print"
+                              className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                                copiadoId === item.id
+                                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                  : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-600 border-zinc-200'
+                              }`}
                               title="Copiar Chave PIX"
                             >
                               {copiadoId === item.id ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
@@ -988,12 +1068,12 @@ export default function RelacaoDiaristas({
                       </td>
 
                       {/* Ações */}
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap no-print">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => onEmitirRecibo && onEmitirRecibo(item)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
-                            title="Emitir Recibo Individual deste Diarista"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold border border-red-200 transition cursor-pointer"
+                            title="Emitir Recibo Individual"
                           >
                             <FileText className="w-3.5 h-3.5 text-red-600" />
                             <span>Recibo</span>
@@ -1002,8 +1082,8 @@ export default function RelacaoDiaristas({
                           {onDeleteDiarista && (
                             <button
                               onClick={() => onDeleteDiarista(item.id)}
-                              className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
-                              title="Remover Diarista"
+                              className="p-1 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                              title="Remover diarista"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1012,37 +1092,133 @@ export default function RelacaoDiaristas({
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
+                })}
+              </tbody>
 
-            {/* Rodapé Consolidado */}
-            <tfoot className="bg-zinc-900 text-white font-black text-sm">
-              <tr>
-                <td className="py-3.5 px-4 uppercase tracking-wider text-xs">
-                  TOTAL DO DIA ({formatarDataBR(activeData)})
-                </td>
-                <td className="py-3.5 px-3 text-center text-xs font-semibold text-zinc-400">
-                  {listaFiltrada.length} diarista(s)
-                </td>
-                <td className="py-3.5 px-3 text-right text-xs text-zinc-400">—</td>
-                <td className="py-3.5 px-3 text-center text-amber-400 text-base font-black">
-                  {totalDiariasQtd}
-                </td>
-                <td className="py-3.5 px-4 text-right text-emerald-400 text-base font-black bg-zinc-950/90">
-                  R$ {formatarMoeda(totalValorGeral)}
-                </td>
-                <td colSpan="2" className="py-3.5 px-4 text-right text-xs font-normal text-zinc-400">
-                  Distribuidora Irmãos Barreiro de Bebidas Ltda.
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              {/* Rodapé Consolidado da Tabela */}
+              <tfoot className="bg-zinc-950 text-white font-black text-xs">
+                <tr>
+                  <td className="py-3 px-4 uppercase tracking-wider">
+                    Total ({listaFiltrada.length} diaristas)
+                  </td>
+                  <td className="py-3 px-3 text-center text-zinc-400 font-semibold">
+                    {formatarDataBR(activeData)}
+                  </td>
+                  <td className="py-3 px-3 text-right text-zinc-400">—</td>
+                  <td className="py-3 px-3 text-center text-amber-400 font-black text-sm">
+                    {listaFiltrada.reduce((acc, c) => acc + (parseInt(c.diarias, 10) || 1), 0)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-emerald-400 font-black text-sm bg-black">
+                    R$ {formatarMoeda(listaFiltrada.reduce((acc, c) => acc + ((parseFloat(c.valor) || 0) * (parseInt(c.diarias, 10) || 1)), 0))}
+                  </td>
+                  <td colSpan="3" className="py-3 px-4 text-right text-zinc-400 font-normal">
+                    Distribuidora Irmãos Barreiro
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* MODO CARDS OPERACIONAIS (Kanban/Grid) */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 no-print">
+          {listaFiltrada.map((item) => {
+            const qtd = parseInt(item.diarias, 10) || 1;
+            const val = parseFloat(item.valor) || 0;
+            const total = val * qtd;
+
+            return (
+              <div 
+                key={item.id}
+                className="bg-white rounded-3xl p-4 border border-zinc-200/90 shadow-md hover:shadow-xl transition-all space-y-3 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-black text-zinc-950 text-sm uppercase tracking-tight">
+                        {item.nome}
+                      </h4>
+                      <p className="text-xs text-zinc-500 font-medium flex items-center gap-1 mt-0.5">
+                        <Truck className="w-3 h-3 text-zinc-400" />
+                        {item.motorista || item.profissao || 'Diarista Geral'}
+                      </p>
+                    </div>
+
+                    {/* Toggle de Status no Card */}
+                    <button
+                      onClick={() => onToggleStatus && onToggleStatus(item.id)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold transition cursor-pointer border flex items-center gap-1 ${
+                        item.pago
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {item.pago ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                      <span>{item.pago ? 'Pago' : 'Pendente'}</span>
+                    </button>
+                  </div>
+
+                  {/* Valores */}
+                  <div className="mt-3 p-2.5 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-[10px] text-zinc-400 font-bold block uppercase">Diárias</span>
+                      <span className="font-extrabold text-zinc-800">{qtd}x R$ {formatarMoeda(val)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-zinc-400 font-bold block uppercase">Total</span>
+                      <span className="font-black text-red-600 text-sm">R$ {formatarMoeda(total)}</span>
+                    </div>
+                  </div>
+
+                  {/* PIX */}
+                  {item.pix && item.pix !== 'Não informada' && (
+                    <div className="mt-2.5 flex items-center justify-between text-xs bg-zinc-100/80 px-2.5 py-1.5 rounded-xl border border-zinc-200/60">
+                      <span className="font-mono text-[11px] text-zinc-600 truncate max-w-[180px]">
+                        {item.pix}
+                      </span>
+                      <button
+                        onClick={() => handleCopiarPix(item.pix, item.id)}
+                        className="text-zinc-500 hover:text-zinc-900 transition p-1"
+                        title="Copiar PIX"
+                      >
+                        {copiadoId === item.id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ações do Card */}
+                <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+                  <button
+                    onClick={() => onEmitirRecibo && onEmitirRecibo(item)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Emitir Recibo</span>
+                  </button>
+
+                  {onDeleteDiarista && (
+                    <button
+                      onClick={() => onDeleteDiarista(item.id)}
+                      className="p-1.5 text-zinc-400 hover:text-red-600 transition"
+                      title="Excluir Diarista"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ================================================================= */}
-      {/* 5. VERSÃO EXCLUSIVA DE IMPRESSÃO LIMPA DO DIA (PRINT)            */}
+      {/* 5. IMPRESSÃO OFICIAL LIMPA (PRINT NATIVO)                          */}
       {/* ================================================================= */}
       <div className="hidden print:block print-clean p-4 font-sans text-black">
         <div className="border-b-2 border-black pb-3 mb-4 flex justify-between items-start">
@@ -1058,9 +1234,9 @@ export default function RelacaoDiaristas({
             </p>
           </div>
           <div className="text-right text-xs">
-            <p>Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
-            <p className="font-bold">Total de Diaristas no Dia: {listaFiltrada.length}</p>
-            <p className="font-bold text-sm text-black">Total a Pagar: R$ {formatarMoeda(totalValorGeral)}</p>
+            <p>Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
+            <p className="font-bold">Total Diaristas: {listaFiltrada.length}</p>
+            <p className="font-bold text-sm">Total a Pagar: R$ {formatarMoeda(totalValorGeral)}</p>
           </div>
         </div>
 
@@ -1068,7 +1244,7 @@ export default function RelacaoDiaristas({
           <thead>
             <tr className="bg-zinc-200 font-bold uppercase text-[10px]">
               <th className="p-2 border">Diarista</th>
-              <th className="p-2 border">Função</th>
+              <th className="p-2 border">Função / Caminhão</th>
               <th className="p-2 border text-center">Data</th>
               <th className="p-2 border text-right">Vlr. Diária</th>
               <th className="p-2 border text-center">Diárias</th>
@@ -1077,29 +1253,21 @@ export default function RelacaoDiaristas({
             </tr>
           </thead>
           <tbody>
-            {listaFiltrada.length === 0 ? (
-              <tr>
-                <td colSpan="7" className="p-4 text-center text-zinc-500 italic">
-                  Nenhum diarista cadastrado para esta data.
-                </td>
-              </tr>
-            ) : (
-              listaFiltrada.map((item) => {
-                const qtd = parseInt(item.diarias, 10) || 1;
-                const val = parseFloat(item.valor) || 0;
-                return (
-                  <tr key={item.id}>
-                    <td className="p-2 border font-bold uppercase">{item.nome}</td>
-                    <td className="p-2 border">{item.motorista || item.profissao || '—'}</td>
-                    <td className="p-2 border text-center">{formatarDataBR(item.data)}</td>
-                    <td className="p-2 border text-right">R$ {formatarMoeda(val)}</td>
-                    <td className="p-2 border text-center font-bold">{qtd}</td>
-                    <td className="p-2 border text-right font-black">R$ {formatarMoeda(val * qtd)}</td>
-                    <td className="p-2 border font-mono">{item.pix || '—'}</td>
-                  </tr>
-                );
-              })
-            )}
+            {listaFiltrada.map((item) => {
+              const qtd = parseInt(item.diarias, 10) || 1;
+              const val = parseFloat(item.valor) || 0;
+              return (
+                <tr key={item.id}>
+                  <td className="p-2 border font-bold uppercase">{item.nome}</td>
+                  <td className="p-2 border">{item.motorista || item.profissao || '—'}</td>
+                  <td className="p-2 border text-center">{formatarDataBR(item.data)}</td>
+                  <td className="p-2 border text-right">R$ {formatarMoeda(val)}</td>
+                  <td className="p-2 border text-center font-bold">{qtd}</td>
+                  <td className="p-2 border text-right font-black">R$ {formatarMoeda(val * qtd)}</td>
+                  <td className="p-2 border font-mono">{item.pix || '—'}</td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="font-bold bg-zinc-100">
@@ -1121,8 +1289,8 @@ export default function RelacaoDiaristas({
           </div>
           <div>
             <div className="border-t border-black w-48 mx-auto mb-1"></div>
-            <p className="font-bold">Conferido por</p>
-            <p>RH</p>
+            <p className="font-bold">Conferência RH</p>
+            <p>Distribuidora Irmãos Barreiro</p>
           </div>
         </div>
       </div>
@@ -1130,4 +1298,3 @@ export default function RelacaoDiaristas({
     </div>
   );
 }
-

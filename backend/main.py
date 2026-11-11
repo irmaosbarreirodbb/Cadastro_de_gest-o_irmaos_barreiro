@@ -54,6 +54,19 @@ def init_db():
                 """
                 DO $$
                 BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.table_constraints 
+                        WHERE constraint_name = 'recibos_diarista_id_fkey'
+                    ) THEN
+                        ALTER TABLE recibos DROP CONSTRAINT recibos_diarista_id_fkey;
+                        ALTER TABLE recibos ADD CONSTRAINT recibos_diarista_id_fkey 
+                            FOREIGN KEY (diarista_id) REFERENCES diaristas_lancamentos(id) ON DELETE SET NULL;
+                    END IF;
+                END $$;
+                """,
+                """
+                DO $$
+                BEGIN
                     IF to_regclass('public.colaboradores_cadastros') IS NOT NULL THEN
                         -- Preserva exclusivamente o cadastro solicitado e seus anexos.
                         INSERT INTO pessoas_fisicas_cadastros
@@ -206,6 +219,55 @@ def init_db():
 
 # Executa criação de tabelas e seeds
 init_db()
+
+
+# Colunas criptografadas usadas como amostra para conferir a chave no boot.
+_AMOSTRAS_CRIPTOGRAFIA = [
+    ("pessoas_fisicas_cadastros", "cpf"),
+    ("diaristas_lancamentos", "chave_pix"),
+    ("recibos", "cpf_diarista"),
+    ("funcionarios_base", "chave_pix"),
+    ("pessoas_juridicas_cadastros", "cnpj"),
+    ("cnhs_funcionarios", "cnh_numero"),
+]
+
+
+def verificar_chave_criptografia():
+    """
+    Confere, só com leitura, se a ENCRYPTION_KEY atual abre os dados já gravados.
+    Se não abrir, registra um erro bem visível no log do deploy. Não altera nada.
+    """
+    from app.core.encryption import verificar_chave_com_amostras
+
+    amostras = []
+    for tabela, coluna in _AMOSTRAS_CRIPTOGRAFIA:
+        try:
+            with engine.connect() as conn:
+                linhas = conn.execute(
+                    text(f"SELECT {coluna} FROM {tabela} WHERE {coluna} LIKE 'gAAAAA%' LIMIT 5")
+                ).fetchall()
+            amostras.extend(linha[0] for linha in linhas)
+        except Exception:
+            continue  # tabela ainda não existe ou banco indisponível
+
+    testados, falhas = verificar_chave_com_amostras(amostras)
+    if falhas:
+        print(
+            "\n" + "!" * 78 + "\n"
+            f"ERRO DE CHAVE DE CRIPTOGRAFIA: {falhas} de {testados} registros de amostra NÃO abrem\n"
+            "com a ENCRYPTION_KEY atual. CPF, PIX e outros dados vão aparecer como 'gAAAAA...'.\n"
+            "Os dados NÃO foram perdidos. Volte a ENCRYPTION_KEY anterior ou coloque-a em\n"
+            "LEGACY_ENCRYPTION_KEYS. Não apague nem recadastre registros.\n"
+            + "!" * 78 + "\n"
+        )
+    elif testados:
+        print(f"Chave de criptografia conferida: {testados} registro(s) de amostra abertos com sucesso.")
+
+
+try:
+    verificar_chave_criptografia()
+except Exception as exc:
+    print(f"Aviso: não foi possível conferir a chave de criptografia: {exc}")
 
 # ============================================================================
 # Scheduler inteligente de alertas de exames toxicológicos
@@ -427,10 +489,13 @@ ALLOWED_ORIGINS = list(set((
     development_origins if settings.ENVIRONMENT == "development" else production_origins
 ) + custom_origins))
 
+# Somente origens explícitas. Não use curingas como *.up.railway.app: qualquer
+# pessoa pode publicar um site nesse domínio e, com allow_credentials=True,
+# ler a API usando o cookie de sessão de quem estiver logado.
+# Novos domínios do frontend devem ser adicionados em ALLOWED_ORIGINS no Railway.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
