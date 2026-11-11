@@ -30,7 +30,6 @@ import {
   SlidersHorizontal,
   CalendarRange,
   Zap,
-  MoreVertical,
   X,
   CreditCard,
   Truck
@@ -128,7 +127,6 @@ export default function RelacaoDiaristas({
   const [visualizacao, setVisualizacao] = useState('tabela'); // 'tabela' | 'cards'
   const [copiadoId, setCopiadoId] = useState(null);
   const [drawerAberto, setDrawerAberto] = useState(false);
-  const [menuAcoesAberto, setMenuAcoesAberto] = useState(false);
   const [clonando, setClonando] = useState(false);
 
   // Data Padrão
@@ -357,7 +355,6 @@ export default function RelacaoDiaristas({
     setAnoSelecionadoRelatorio(anoVigente);
     setAutoDownloadRelatorio(autoDownload);
     setRelatorioAberto(true);
-    setMenuAcoesAberto(false);
   }
 
   // Smart Clone: Clonar diaristas da data anterior
@@ -500,6 +497,25 @@ export default function RelacaoDiaristas({
               </div>
             </div>
 
+            {/* Ações secundárias visíveis: Relatório Mensal e Impressão da Folha do Dia */}
+            <button
+              onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200/80 shadow-2xs transition cursor-pointer whitespace-nowrap"
+              title="Gerar o relatório mensal em PDF"
+            >
+              <BarChart2 className="w-4 h-4 text-emerald-600" />
+              <span>Relatório Mensal</span>
+            </button>
+
+            <button
+              onClick={handlePrint}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold border border-zinc-200/80 shadow-2xs transition cursor-pointer whitespace-nowrap"
+              title="Imprimir a folha de diaristas do dia selecionado"
+            >
+              <Printer className="w-4 h-4 text-zinc-600" />
+              <span>Imprimir Folha do Dia</span>
+            </button>
+
             {/* Ação Primária: + Cadastrar Diarista (Busca no banco de dados e autopreenchimento) */}
             <button
               id="btn-cadastrar-diarista"
@@ -510,82 +526,6 @@ export default function RelacaoDiaristas({
               <UserPlus className="w-4 h-4" />
               <span>+ Cadastrar Diarista</span>
             </button>
-
-            {/* Menu Dropdown de Ações Secundárias */}
-            <div className="relative">
-              <button
-                onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
-                className="p-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 transition cursor-pointer border border-zinc-200/80 shadow-2xs"
-                title="Mais opções e relatórios"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-
-              {menuAcoesAberto && (
-                <div 
-                  className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-zinc-200 p-2 z-30 divide-y divide-zinc-100 animate-fadeIn"
-                  onMouseLeave={() => setMenuAcoesAberto(false)}
-                >
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        setMenuAcoesAberto(false);
-                        setDrawerAberto(true);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
-                    >
-                      <UserPlus className="w-4 h-4 text-red-600" />
-                      <span>Lançamento Rápido (Gaveta)</span>
-                    </button>
-                    <button
-                      onClick={() => handleAbrirRelatorio(mesExpandidoIndex, false)}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
-                    >
-                      <BarChart2 className="w-4 h-4 text-emerald-600" />
-                      <span>Relatório Mensal PDF</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMenuAcoesAberto(false);
-                        handlePrint();
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 flex items-center gap-2.5 transition cursor-pointer"
-                    >
-                      <Printer className="w-4 h-4 text-zinc-600" />
-                      <span>Imprimir Folha do Dia</span>
-                    </button>
-                  </div>
-
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        setMenuAcoesAberto(false);
-                        if (onNavigateCadastrar) onNavigateCadastrar();
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 flex items-center gap-2.5 transition cursor-pointer"
-                    >
-                      <UserPlus className="w-4 h-4 text-zinc-500" />
-                      <span>Cadastro Completo (Tela Cheia)</span>
-                    </button>
-                  </div>
-
-                  {onResetDiaristas && (
-                    <div className="pt-1">
-                      <button
-                        onClick={() => {
-                          setMenuAcoesAberto(false);
-                          onResetDiaristas();
-                        }}
-                        className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                        <span>Limpar Relação de Hoje</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
 
           </div>
         </div>
@@ -940,7 +880,6 @@ export default function RelacaoDiaristas({
                   <th className="py-3.5 px-4 text-right bg-red-50/60 text-red-950 font-black border-x border-red-200/50">
                     Total
                   </th>
-                  <th className="py-3.5 px-3 text-center">Status Pagamento</th>
                   <th className="py-3.5 px-4">Chave PIX</th>
                   <th className="py-3.5 px-4 text-center">Ações</th>
                 </tr>
@@ -1016,31 +955,6 @@ export default function RelacaoDiaristas({
                         R$ {formatarMoeda(total)}
                       </td>
 
-                      {/* Status de Pagamento Clicável (Optimistic UI) */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => onToggleStatus && onToggleStatus(item.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold transition cursor-pointer border ${
-                            item.pago
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                          }`}
-                          title="Clique para alternar o status do pagamento"
-                        >
-                          {item.pago ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Pago</span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              <span>A Pagar</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-
                       {/* Chave PIX com Cópia Rápida */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
@@ -1111,7 +1025,7 @@ export default function RelacaoDiaristas({
                   <td className="py-3 px-4 text-right text-emerald-400 font-black text-sm bg-black">
                     R$ {formatarMoeda(listaFiltrada.reduce((acc, c) => acc + ((parseFloat(c.valor) || 0) * (parseInt(c.diarias, 10) || 1)), 0))}
                   </td>
-                  <td colSpan="3" className="py-3 px-4 text-right text-zinc-400 font-normal">
+                  <td colSpan="2" className="py-3 px-4 text-right text-zinc-400 font-normal">
                     Distribuidora Irmãos Barreiro
                   </td>
                 </tr>
