@@ -421,7 +421,7 @@ def verificar_e_enviar_alertas(db: Session) -> dict:
             try:
                 _registrar_alerta(db, exame)
             except Exception as exc:
-                print(f"⚠️  Erro ao registrar alerta para {exame.nome}: {exc}")
+                print(f"⚠️  Erro ao registrar alerta do exame id={exame.id}: {exc}")
                 db.rollback()
 
     nomes = [e.nome for e in a_alertar]

@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -24,6 +25,7 @@ from app.services.exame_importer import importar_planilha_exames
 from app.services.email_service import verificar_e_enviar_alertas
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _TAMANHO_MAX = 10 * 1024 * 1024  # 10 MB
 
@@ -193,8 +195,14 @@ async def importar_planilha(
         inseridos, atualizados, ignorados, erros = importar_planilha_exames(
             file_bytes, file.filename, db
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao processar planilha: {str(e)}")
+    except Exception:
+        # O detalhe técnico vai só para o log do servidor; o usuário recebe uma mensagem genérica.
+        db.rollback()
+        logger.exception("Falha ao importar planilha de exames toxicológicos")
+        raise HTTPException(
+            status_code=400,
+            detail="Não foi possível processar a planilha. Confira se o arquivo e as colunas estão no formato esperado.",
+        )
 
     total_importados = inseridos + atualizados
     if total_importados:

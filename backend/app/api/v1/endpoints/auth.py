@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token, simular_verificacao_senha
 from app.models.usuario import Usuario
 from app.schemas.auth import LoginRequest, Token, UserOut
 from app.api.deps import get_current_user
@@ -24,6 +24,7 @@ def login(login_data: LoginRequest, request: Request, response: Response, db: Se
     )
     
     if not user:
+        simular_verificacao_senha(login_data.senha)
         raise credenciais_invalidas
     
     if not verify_password(login_data.senha, user.senha):

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from jose import jwt
+import secrets
 import bcrypt
 from app.core.config import settings
 
@@ -14,6 +15,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+# Hash descartável (de uma senha aleatória) usado quando o e-mail não existe.
+# Assim o login leva o mesmo tempo com ou sem usuário cadastrado, e a demora
+# da resposta não revela quais e-mails existem no sistema.
+_HASH_FICTICIO = get_password_hash(secrets.token_urlsafe(32))
+
+def simular_verificacao_senha(plain_password: str) -> None:
+    verify_password(plain_password or "x", _HASH_FICTICIO)
 
 def create_access_token(subject: Union[str, Any], expires_delta: timedelta = None) -> str:
     if expires_delta:

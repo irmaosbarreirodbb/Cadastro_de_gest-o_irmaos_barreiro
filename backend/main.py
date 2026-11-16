@@ -237,7 +237,7 @@ def verificar_chave_criptografia():
     Confere, só com leitura, se a ENCRYPTION_KEY atual abre os dados já gravados.
     Se não abrir, registra um erro bem visível no log do deploy. Não altera nada.
     """
-    from app.core.encryption import verificar_chave_com_amostras
+    from app.core.encryption import verificar_chave_com_amostras, contar_dependentes_da_secret_key
 
     amostras = []
     for tabela, coluna in _AMOSTRAS_CRIPTOGRAFIA:
@@ -262,6 +262,14 @@ def verificar_chave_criptografia():
         )
     elif testados:
         print(f"Chave de criptografia conferida: {testados} registro(s) de amostra abertos com sucesso.")
+
+    dependentes = contar_dependentes_da_secret_key(amostras)
+    if dependentes:
+        print(
+            f"ATENÇÃO: {dependentes} registro(s) de amostra só abrem com a SECRET_KEY atual.\n"
+            "Antes de trocar a SECRET_KEY, coloque o valor atual dela em LEGACY_ENCRYPTION_KEYS,\n"
+            "senão esses dados vão aparecer como 'gAAAAA...'."
+        )
 
 
 try:
@@ -339,10 +347,9 @@ def _scheduler_alertas_exames():
                 total    = resultado.get("total_alertas", 0)
                 enviado  = resultado.get("enviado", False)
                 mensagem = resultado.get("mensagem", "concluído.")
-                motoristas = resultado.get("motoristas", [])
-
                 if total > 0 and enviado:
-                    print(f"📧 E-mail de alerta enviado! {total} motorista(s): {', '.join(motoristas)}")
+                    # Só a quantidade: nomes ligados a exame toxicológico não vão para o log (LGPD).
+                    print(f"📧 E-mail de alerta enviado! {total} motorista(s).")
                 elif total > 0 and not enviado:
                     print(f"⚠️  Alerta detectado mas falha no envio: {mensagem}")
                 else:
@@ -424,10 +431,9 @@ def _scheduler_alertas_cnh():
                 total = resultado.get("total_alertas", 0)
                 enviado = resultado.get("enviado", False)
                 mensagem = resultado.get("mensagem", "concluído.")
-                funcionarios = resultado.get("funcionarios", [])
-
                 if total > 0 and enviado:
-                    print(f"📧 E-mail de alerta CNH enviado! {total} condutor(es): {', '.join(funcionarios)}")
+                    # Só a quantidade: nomes de condutores não vão para o log (LGPD).
+                    print(f"📧 E-mail de alerta CNH enviado! {total} condutor(es).")
                 elif total > 0 and not enviado:
                     print(f"⚠️ Alerta CNH detectado mas falha no envio: {mensagem}")
                 else:
