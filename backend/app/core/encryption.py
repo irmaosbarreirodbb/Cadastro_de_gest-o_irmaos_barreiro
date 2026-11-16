@@ -48,10 +48,13 @@ def _build_fernet_suite() -> MultiFernet:
       garantindo que qualquer dado antigo já gravado no PostgreSQL seja descriptografado
       com sucesso para visualização, sem quebrar o sistema.
     """
-    if not settings.ENCRYPTION_KEY and settings.ENVIRONMENT != "development":
-        logger.warning(
-            "ENCRYPTION_KEY não definida: usando a SECRET_KEY para criptografar dados. "
-            "Defina ENCRYPTION_KEY (diferente da SECRET_KEY) e mantenha-a fixa."
+    if not settings.ENCRYPTION_KEY:
+        # Mantém o funcionamento (não derruba o sistema), mas deixa o risco bem visível:
+        # sem ENCRYPTION_KEY, trocar a SECRET_KEY deixa CPF/PIX/documentos ilegíveis.
+        logger.error(
+            "ENCRYPTION_KEY não definida: a SECRET_KEY está sendo usada para criptografar "
+            "CPF, PIX e documentos. NÃO troque a SECRET_KEY nessa situação. Defina uma "
+            "ENCRYPTION_KEY própria (diferente da SECRET_KEY) e mantenha-a fixa."
         )
     primary_raw = settings.ENCRYPTION_KEY or settings.SECRET_KEY
     primary_key = _derive_fernet_key(primary_raw)
@@ -132,6 +135,42 @@ def decrypt_bytes(val: bytes) -> bytes:
         if bytes(val[:6]) == b"gAAAAA":
             _registrar_falha_descriptografia("arquivo")
         return val
+
+
+def contar_dependentes_da_secret_key(amostras: Iterable[str]) -> int:
+    """
+    Conta quantos tokens só abrem com a SECRET_KEY (nem a ENCRYPTION_KEY nem as
+    chaves legadas abrem). Esses dados ficariam ilegíveis se a SECRET_KEY fosse
+    trocada. Só leitura; não altera nada.
+    """
+    if not settings.ENCRYPTION_KEY or not settings.SECRET_KEY:
+        return 0
+    legadas = [k.strip() for k in settings.LEGACY_ENCRYPTION_KEYS.split(",") if k.strip()]
+    if settings.SECRET_KEY in legadas or settings.ENCRYPTION_KEY == settings.SECRET_KEY:
+        # A SECRET_KEY já está guardada como chave legada (ou é a própria ENCRYPTION_KEY):
+        # trocá-la não deixa nada ilegível.
+        return 0
+    chave_secret = _derive_fernet_key(settings.SECRET_KEY)
+    outras = [_derive_fernet_key(k) for k in [settings.ENCRYPTION_KEY] + legadas]
+    so_secret = Fernet(chave_secret)
+    demais = MultiFernet([Fernet(k) for k in outras])
+
+    total = 0
+    for token in amostras:
+        if not token or not isinstance(token, str) or not token.startswith("gAAAAA"):
+            continue
+        dado = token.encode("utf-8")
+        try:
+            demais.decrypt(dado)
+            continue  # abre sem a SECRET_KEY: pode trocar a SECRET_KEY sem risco
+        except Exception:
+            pass
+        try:
+            so_secret.decrypt(dado)
+            total += 1
+        except Exception:
+            pass
+    return total
 
 
 def verificar_chave_com_amostras(amostras: Iterable[str]) -> tuple[int, int]:

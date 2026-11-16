@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -24,6 +25,7 @@ from app.services.cnh_importer import importar_planilha_cnh
 from app.services.cnh_email_service import verificar_e_enviar_alertas_cnh
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _TAMANHO_MAX = 15 * 1024 * 1024  # 15 MB
 
@@ -286,8 +288,14 @@ async def importar_planilha(
         inseridos, atualizados, ignorados, erros = importar_planilha_cnh(
             file_bytes, file.filename, db, setor_padrao=setor
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao processar planilha de CNH: {str(e)}")
+    except Exception:
+        # O detalhe técnico vai só para o log do servidor; o usuário recebe uma mensagem genérica.
+        db.rollback()
+        logger.exception("Falha ao importar planilha de CNH")
+        raise HTTPException(
+            status_code=400,
+            detail="Não foi possível processar a planilha de CNH. Confira se o arquivo e as colunas estão no formato esperado.",
+        )
 
     total_importados = inseridos + atualizados
     if total_importados:
