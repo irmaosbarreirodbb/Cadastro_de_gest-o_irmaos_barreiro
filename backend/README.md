@@ -14,7 +14,7 @@ Consulte o arquivo principal na raiz do projeto: [PLANO_DESENVOLVIMENTO_BACKEND.
 
 2. **Instalar Dependências**:
    ```bash
-   pip install fastapi "uvicorn[standard]" sqlalchemy alembic pydantic pydantic-settings python-jose[cryptography] passlib[bcrypt] num2words python-multipart
+   pip install fastapi "uvicorn[standard]" sqlalchemy alembic pydantic pydantic-settings PyJWT passlib[bcrypt] num2words python-multipart
    ```
 
 3. **Estrutura de Pastas Esperada**:

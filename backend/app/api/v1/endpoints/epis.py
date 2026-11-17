@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.epi import EPI, EntregaEPI
 from app.models.funcionario_epi import FuncionarioEPI
 from app.models.usuario import Usuario
+from app.core.uploads import ler_com_limite
 from app.api.deps import get_current_user
 from app.schemas.epi import (
     EPICreate,
@@ -163,7 +164,7 @@ async def endpoint_preview_planilha(
     if not file.filename.lower().endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos .xlsx, .xls ou .csv.")
 
-    file_bytes = await file.read()
+    file_bytes = await ler_com_limite(file, _TAMANHO_MAX_UPLOAD)
     if len(file_bytes) > _TAMANHO_MAX_UPLOAD:
         raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
     try:
@@ -188,7 +189,7 @@ async def endpoint_importar_planilha(
     if not file.filename.lower().endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Formato não suportado. Envie arquivos .xlsx, .xls ou .csv.")
 
-    file_bytes = await file.read()
+    file_bytes = await ler_com_limite(file, _TAMANHO_MAX_UPLOAD)
     if len(file_bytes) > _TAMANHO_MAX_UPLOAD:
         raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
     try:
@@ -217,7 +218,7 @@ async def endpoint_importar_xml(
     if not file.filename.lower().endswith(".xml"):
         raise HTTPException(status_code=400, detail="Formato inválido. Por favor, envie um arquivo .xml de NF-e.")
 
-    xml_bytes = await file.read()
+    xml_bytes = await ler_com_limite(file, _TAMANHO_MAX_UPLOAD)
     if len(xml_bytes) > _TAMANHO_MAX_UPLOAD:
         raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB.")
     try:

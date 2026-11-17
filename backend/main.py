@@ -501,6 +501,11 @@ ALLOWED_ORIGINS = list(set((
 from app.core.csrf import CSRFHeaderMiddleware
 app.add_middleware(CSRFHeaderMiddleware, prefixo=settings.API_V1_STR + "/")
 
+# Recusa (413) envios maiores que 20 MB antes de recebê-los, para um arquivo
+# gigante não ocupar memória/disco do servidor. Também por dentro do CORS.
+from app.core.uploads import LimiteCorpoMiddleware
+app.add_middleware(LimiteCorpoMiddleware)
+
 # Somente origens explícitas. Não use curingas como *.up.railway.app: qualquer
 # pessoa pode publicar um site nesse domínio e, com allow_credentials=True,
 # ler a API usando o cookie de sessão de quem estiver logado.
