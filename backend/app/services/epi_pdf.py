@@ -11,6 +11,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfgen import canvas as pdfcanvas
 
+from app.services.pdf_texto import texto_pdf
+
 
 MESES_PT = {
     1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
@@ -187,11 +189,12 @@ def gerar_ficha_epi_pdf(
     # ─────────────────────────────────────────────────────────────────────────
     # Coleta dados do colaborador
     # ─────────────────────────────────────────────────────────────────────────
-    nome_colab    = colaborador.get("nome", "").upper()
-    registro_colab = str(colaborador.get("registro", colaborador.get("matricula", "373")))
-    funcao_colab  = colaborador.get("funcao", "Ajudante de Motorista")
-    setor_colab   = colaborador.get("setor", "Distribuição")
-    local_colab   = colaborador.get("local", "Cascavel")
+    # Valores vindos do banco são escapados: o Paragraph interpreta marcações.
+    nome_colab    = texto_pdf((colaborador.get("nome") or "").upper())
+    registro_colab = texto_pdf(colaborador.get("registro", colaborador.get("matricula", "373")))
+    funcao_colab  = texto_pdf(colaborador.get("funcao", "Ajudante de Motorista"))
+    setor_colab   = texto_pdf(colaborador.get("setor", "Distribuição"))
+    local_colab   = texto_pdf(colaborador.get("local", "Cascavel"))
 
     story = []
 
@@ -316,7 +319,7 @@ def gerar_ficha_epi_pdf(
 
     t_ass = Table(
         [[
-            _p(f"<b>{cidade.upper()}, {data_fmt.upper()}.</b>", sAssData),
+            _p(f"<b>{texto_pdf(cidade.upper())}, {texto_pdf(data_fmt.upper())}.</b>", sAssData),
             _p("<b>ASSINATURA</b> _____________________________________________", sAssData),
         ]],
         colWidths=[8.5 * cm, PAGE_W - 8.5 * cm],
@@ -417,11 +420,11 @@ def gerar_ficha_epi_pdf(
     # Preenche com os registros reais de entrega
     for item in entregas:
         qtd_v  = f"{float(item.get('quantidade', 1)):.0f}"
-        cod_v  = str(item.get("cod_epi", item.get("epi_id", "")))
-        tam_v  = str(item.get("tamanho", "") or "")
-        mot_v  = str(item.get("motivo", "A"))
-        ca_v   = str(item.get("numero_ca", item.get("ca", "")) or "")
-        data_v = str(item.get("data_entrega", item.get("data", "")) or "")
+        cod_v  = texto_pdf(item.get("cod_epi", item.get("epi_id", "")))
+        tam_v  = texto_pdf(item.get("tamanho", "") or "")
+        mot_v  = texto_pdf(item.get("motivo", "A"))
+        ca_v   = texto_pdf(item.get("numero_ca", item.get("ca", "")) or "")
+        data_v = texto_pdf(item.get("data_entrega", item.get("data", "")) or "")
 
         ctrl_rows.append([
             _p(qtd_v,  sTCell),
