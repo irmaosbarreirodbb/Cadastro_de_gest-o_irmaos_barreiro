@@ -495,6 +495,12 @@ ALLOWED_ORIGINS = list(set((
     development_origins if settings.ENVIRONMENT == "development" else production_origins
 ) + custom_origins))
 
+# Proteção contra CSRF: requisições que alteram dados precisam do cabeçalho
+# X-Requested-With (o frontend já envia). Registrado ANTES do CORS para ficar
+# por dentro dele: assim a resposta 403 também leva os cabeçalhos de CORS.
+from app.core.csrf import CSRFHeaderMiddleware
+app.add_middleware(CSRFHeaderMiddleware, prefixo=settings.API_V1_STR + "/")
+
 # Somente origens explícitas. Não use curingas como *.up.railway.app: qualquer
 # pessoa pode publicar um site nesse domínio e, com allow_credentials=True,
 # ler a API usando o cookie de sessão de quem estiver logado.

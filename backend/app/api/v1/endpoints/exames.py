@@ -22,6 +22,7 @@ from app.schemas.exame_toxicologico import (
     ImportacaoExameResultadoOut
 )
 from app.services.exame_importer import importar_planilha_exames
+from app.services.pdf_texto import texto_pdf
 from app.services.email_service import verificar_e_enviar_alertas
 
 router = APIRouter()
@@ -349,9 +350,9 @@ def _gerar_pdf(exames: List[ExameToxicologico]) -> bytes:
 
     for ex in exames:
         dias = ex.dias_para_vencer
-        nome_par = Paragraph(ex.nome, ParagraphStyle("Cell", fontSize=8.5, alignment=TA_LEFT))
-        exame_par = Paragraph(ex.data_exame, ParagraphStyle("CellC", fontSize=8.5, alignment=TA_CENTER))
-        venc_par = Paragraph(ex.data_vencimento, ParagraphStyle("CellC2", fontSize=8.5, alignment=TA_CENTER))
+        nome_par = Paragraph(texto_pdf(ex.nome), ParagraphStyle("Cell", fontSize=8.5, alignment=TA_LEFT))
+        exame_par = Paragraph(texto_pdf(ex.data_exame), ParagraphStyle("CellC", fontSize=8.5, alignment=TA_CENTER))
+        venc_par = Paragraph(texto_pdf(ex.data_vencimento), ParagraphStyle("CellC2", fontSize=8.5, alignment=TA_CENTER))
         dados_tabela.append([nome_par, exame_par, venc_par])
 
     largura_util = A4[0] - 30 * mm  # 180mm

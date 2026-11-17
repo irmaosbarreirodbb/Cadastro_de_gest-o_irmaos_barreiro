@@ -22,6 +22,7 @@ from app.schemas.cnh import (
     ImportacaoCNHResultadoOut
 )
 from app.services.cnh_importer import importar_planilha_cnh
+from app.services.pdf_texto import texto_pdf
 from app.services.cnh_email_service import verificar_e_enviar_alertas_cnh
 
 router = APIRouter()
@@ -476,7 +477,7 @@ def _gerar_pdf_cnh(cnhs: List[CNHFuncionario], setor_filtro: Optional[str] = Non
 
         # Cabeçalho da Seção (Amarelo)
         tabela_secao = Table(
-            [[Paragraph(nome_setor, estilo_setor_titulo)]],
+            [[Paragraph(texto_pdf(nome_setor), estilo_setor_titulo)]],
             colWidths=[largura_total],
             rowHeights=[16]
         )
@@ -505,10 +506,10 @@ def _gerar_pdf_cnh(cnhs: List[CNHFuncionario], setor_filtro: Optional[str] = Non
             cnh_num_pdf = decrypt_val(item.cnh_numero) if item.cnh_numero else "-"
             dados_tabela.append([
                 Paragraph(str(idx), estilo_celula_centro),
-                Paragraph(str(item.nome), estilo_celula_esq),
-                Paragraph(str(item.cnh_validade or "-"), estilo_celula_centro),
-                Paragraph(str(cnh_num_pdf or "-"), estilo_celula_cnh_num),
-                Paragraph(str(item.observacao or ""), estilo_celula_esq),
+                Paragraph(texto_pdf(item.nome), estilo_celula_esq),
+                Paragraph(texto_pdf(item.cnh_validade or "-"), estilo_celula_centro),
+                Paragraph(texto_pdf(cnh_num_pdf or "-"), estilo_celula_cnh_num),
+                Paragraph(texto_pdf(item.observacao or ""), estilo_celula_esq),
             ])
 
         tabela_dados = Table(
