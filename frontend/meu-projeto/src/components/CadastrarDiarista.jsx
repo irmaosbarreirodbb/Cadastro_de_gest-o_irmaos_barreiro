@@ -79,7 +79,9 @@ export default function CadastrarDiarista({ onBack, onSave, dataInicial, diarist
           const porNome = new Map();
           dados.forEach((diarista) => {
             const chave = diarista.nome?.trim().toLowerCase();
-            if (chave && !porNome.has(chave)) {
+            if (!chave) return;
+            const existente = porNome.get(chave);
+            if (!existente) {
               porNome.set(chave, {
                 id: diarista.id,
                 nome: diarista.nome,
@@ -87,6 +89,10 @@ export default function CadastrarDiarista({ onBack, onSave, dataInicial, diarist
                 tipoPix: diarista.tipo_pix || 'cpf',
                 chavePix: diarista.chave_pix || '',
               });
+            } else if (!existente.chavePix && diarista.chave_pix) {
+              // O lançamento mais recente veio sem PIX legível: usa o de um lançamento anterior.
+              existente.chavePix = diarista.chave_pix;
+              existente.tipoPix = diarista.tipo_pix || existente.tipoPix;
             }
           });
           setFuncionariosDb([...porNome.values()]);

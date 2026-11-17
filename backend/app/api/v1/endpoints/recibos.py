@@ -9,6 +9,7 @@ from app.schemas.recibo import ReciboCreate, ReciboOut
 from app.services.extenso import numero_por_extenso
 from app.services.protocolo import gerar_numero_recibo
 from app.api.deps import get_current_user
+from app.api.validacoes import recusar_dado_ilegivel
 
 router = APIRouter()
 
@@ -36,6 +37,9 @@ def emitir_recibo(
     extenso = dados.valor_extenso or numero_por_extenso(dados.valor_total)
 
     dados_dict = dados.model_dump(exclude={"valor_extenso"})
+    # Um recibo com CPF/PIX ilegível sairia impresso como "gAAAAA...".
+    recusar_dado_ilegivel(dados_dict.get("cpf_diarista"), "CPF")
+    recusar_dado_ilegivel(dados_dict.get("chave_pix"), "PIX")
     if dados_dict.get("cpf_diarista"):
         dados_dict["cpf_diarista"] = encrypt_val(dados_dict["cpf_diarista"])
     if dados_dict.get("chave_pix"):

@@ -155,6 +155,13 @@ export async function getCurrentUserApi() {
   return await res.json();
 }
 
+// Um dado que o backend não conseguiu descriptografar chega como "gAAAAA...".
+// Trocar por vazio evita mostrar o código na tela e, principalmente, evita que
+// ele seja copiado para outro registro (catálogo, "replicar equipe", recibo).
+export function limparDadoIlegivel(valor) {
+  return typeof valor === 'string' && valor.startsWith('gAAAAA') ? '' : valor;
+}
+
 export async function getDiaristasApi(dataIso, mesIso) {
   let url = `${API_BASE_URL}/diaristas`;
   if (dataIso) {
@@ -166,7 +173,10 @@ export async function getDiaristasApi(dataIso, mesIso) {
     headers: getAuthHeaders()
   });
   if (!res.ok) throw new Error('Erro ao buscar diaristas (autorização necessária)');
-  return await res.json();
+  const lista = await res.json();
+  return Array.isArray(lista)
+    ? lista.map((d) => ({ ...d, chave_pix: limparDadoIlegivel(d.chave_pix) }))
+    : lista;
 }
 
 export async function getDatasDisponiveisApi() {
@@ -183,7 +193,10 @@ export async function createDiaristaApi(diaristaData) {
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(diaristaData),
   });
-  if (!res.ok) throw new Error('Erro ao criar diarista');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Erro ao criar diarista');
+  }
   return await res.json();
 }
 
@@ -234,6 +247,21 @@ export async function createColaboradorApi(formData) {
     body: JSON.stringify(formData),
   });
   if (!res.ok) throw new Error('Erro ao cadastrar ficha de colaborador');
+  return await res.json();
+}
+
+// Busca um cadastro já salvo (dados descriptografados pelo backend, só para quem está logado).
+// Usado para recompletar a ficha concluída depois de atualizar a página, já que o
+// rascunho no navegador não guarda mais CPF, RG, telefone e dados bancários.
+export async function getColaboradorApi(id) {
+  const res = await fetch(`${API_BASE_URL}/colaboradores/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Não foi possível carregar a ficha cadastral');
+  return await res.json();
+}
+
+export async function getPessoaJuridicaApi(id) {
+  const res = await fetch(`${API_BASE_URL}/pessoas-juridicas/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error('Não foi possível carregar o cadastro');
   return await res.json();
 }
 

@@ -3,9 +3,37 @@ import { jsPDF } from 'jspdf';
 import { toCanvas } from 'html-to-image';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi, consultarMotoristaDadosApi, listarMotoristasBancoApi } from '../services/api';
+import { baixarDocumentoColaboradorApi, baixarDocumentoPessoaJuridicaApi, createColaboradorApi, createPessoaJuridicaApi, getDocumentosColaboradorApi, getDocumentosPessoaJuridicaApi, consultarMotoristaDadosApi, listarMotoristasBancoApi, getColaboradorApi, getPessoaJuridicaApi, limparDadoIlegivel } from '../services/api';
 import DocumentosPessoaFisica from './DocumentosPessoaFisica';
 import DocumentosPessoaJuridica from './DocumentosPessoaJuridica';
+
+// Campos que NÃO vão para o rascunho no navegador (sessionStorage). Ali eles
+// ficariam legíveis por qualquer script que rodasse na página. Ao atualizar a
+// página no meio do cadastro, esses campos precisam ser preenchidos de novo.
+const CAMPOS_SENSIVEIS_RASCUNHO = ['cpf', 'rg', 'telefone', 'cnpj', 'agencia', 'conta', 'chavePix'];
+
+function semDadosSensiveis(dados) {
+  const copia = { ...dados };
+  CAMPOS_SENSIVEIS_RASCUNHO.forEach((campo) => {
+    delete copia[campo];
+  });
+  return copia;
+}
+
+// Converte o cadastro salvo (nomes do backend) para os campos sensíveis do formulário.
+function dadosSensiveisDoCadastro(cadastro, juridica) {
+  if (!cadastro) return {};
+  const valor = (v) => limparDadoIlegivel(v) || '';
+  const comuns = {
+    telefone: valor(cadastro.telefone),
+    agencia: valor(cadastro.agencia),
+    conta: valor(cadastro.conta),
+    chavePix: valor(cadastro.chave_pix),
+  };
+  return juridica
+    ? { ...comuns, cnpj: valor(cadastro.cnpj) }
+    : { ...comuns, cpf: valor(cadastro.cpf), rg: valor(cadastro.rg) };
+}
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 import {
@@ -220,7 +248,8 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
       if (salvo) {
         const rascunho = JSON.parse(salvo);
         if (rascunho.formData && typeof rascunho.formData === 'object') {
-          setFormData((atual) => ({ ...atual, ...rascunho.formData }));
+          // Rascunhos antigos ainda podem ter CPF/conta: descarta ao restaurar.
+          setFormData((atual) => ({ ...atual, ...semDadosSensiveis(rascunho.formData) }));
         }
         setCurrentStep(Number.isInteger(rascunho.currentStep) ? rascunho.currentStep : 1);
         setMaxStepReached(Number.isInteger(rascunho.maxStepReached) ? rascunho.maxStepReached : 1);
@@ -228,6 +257,16 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
         setColaboradorId(rascunho.colaboradorId || '');
         if (rascunho.protocolo) setProtocolo(rascunho.protocolo);
         if (rascunho.dataEmissao) setDataEmissao(rascunho.dataEmissao);
+
+        // Cadastro já concluído e salvo: busca no backend os dados sensíveis que o
+        // rascunho não guarda, para a ficha e o PDF continuarem completos.
+        if (rascunho.isCompleted && rascunho.colaboradorId) {
+          const juridica = rascunho.formData?.tipoPessoa === 'juridica';
+          const buscar = juridica ? getPessoaJuridicaApi : getColaboradorApi;
+          buscar(rascunho.colaboradorId)
+            .then((cadastro) => setFormData((atual) => ({ ...atual, ...dadosSensiveisDoCadastro(cadastro, juridica) })))
+            .catch((erro) => console.warn('Não foi possível recompletar a ficha concluída:', erro));
+        }
       }
     } catch (erro) {
       console.warn('Não foi possível restaurar o rascunho do cadastro:', erro);
@@ -240,7 +279,7 @@ export default function FormularioColaborador({ userEmail = '', onLogout, onBack
     if (!rascunhoCarregado) return;
     try {
       sessionStorage.setItem(chaveRascunho, JSON.stringify({
-        formData,
+        formData: semDadosSensiveis(formData),
         currentStep,
         maxStepReached,
         isCompleted,
