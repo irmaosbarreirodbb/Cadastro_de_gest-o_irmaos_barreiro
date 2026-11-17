@@ -116,6 +116,21 @@ def decrypt_val(val: str) -> str:
         return val
 
 
+def token_ilegivel(val) -> bool:
+    """
+    True quando o valor é um token cifrado ("gAAAAA...") que nenhuma chave
+    configurada consegue abrir. Acontece quando a tela recebe um dado que não
+    pôde ser descriptografado e tenta gravá-lo de novo em outro registro.
+    """
+    if not val or not isinstance(val, str) or not val.startswith("gAAAAA"):
+        return False
+    try:
+        _fernet.decrypt(val.encode("utf-8"))
+        return False
+    except Exception:
+        return True
+
+
 def encrypt_bytes(val: bytes) -> bytes:
     """Criptografa arquivos sensíveis antes de salvá-los no banco."""
     if not val:

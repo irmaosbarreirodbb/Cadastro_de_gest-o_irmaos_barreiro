@@ -10,6 +10,7 @@ from app.models.recibo import Recibo
 from app.models.usuario import Usuario
 from app.schemas.diarista import DiaristaCreate, DiaristaUpdate, DiaristaOut
 from app.api.deps import get_current_user
+from app.api.validacoes import recusar_dado_ilegivel
 
 router = APIRouter()
 
@@ -54,7 +55,8 @@ def criar_diarista(
 ):
     valor_total = float(dados.valor_diaria) * int(dados.quantidade_diarias)
     dados_dict = dados.model_dump()
-    
+    recusar_dado_ilegivel(dados_dict.get("chave_pix"), "PIX")
+
     # Criptografa a chave PIX do lançamento no PostgreSQL
     if dados_dict.get("chave_pix"):
         dados_dict["chave_pix"] = encrypt_val(dados_dict["chave_pix"])
@@ -96,6 +98,7 @@ def atualizar_diarista(
         raise HTTPException(status_code=404, detail="Lançamento de diária não encontrado")
     
     updates = dados.model_dump(exclude_unset=True)
+    recusar_dado_ilegivel(updates.get("chave_pix"), "PIX", valor_atual=diarista.chave_pix)
     if "chave_pix" in updates and updates["chave_pix"]:
         updates["chave_pix"] = encrypt_val(updates["chave_pix"])
 

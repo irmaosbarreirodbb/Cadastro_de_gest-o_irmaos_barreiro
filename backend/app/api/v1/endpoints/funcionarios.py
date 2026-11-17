@@ -18,6 +18,7 @@ from app.schemas.funcionario import (
     FuncionarioRelatorioDiaria
 )
 from app.api.deps import get_current_user
+from app.api.validacoes import recusar_dado_ilegivel
 
 router = APIRouter()
 
@@ -392,6 +393,7 @@ def criar_funcionario_base(
     current_user: Usuario = Depends(get_current_user)
 ):
     dados_dict = dados.model_dump()
+    recusar_dado_ilegivel(dados_dict.get("chave_pix"), "PIX")
     if dados_dict.get("chave_pix"):
         dados_dict["chave_pix"] = encrypt_val(dados_dict["chave_pix"])
 
@@ -413,6 +415,7 @@ def atualizar_funcionario_base(
         raise HTTPException(status_code=404, detail="Funcionário não encontrado no catálogo base")
     
     dados_dict = dados.model_dump(exclude_unset=True)
+    recusar_dado_ilegivel(dados_dict.get("chave_pix"), "PIX", valor_atual=func.chave_pix)
     if "chave_pix" in dados_dict and dados_dict["chave_pix"]:
         dados_dict["chave_pix"] = encrypt_val(dados_dict["chave_pix"])
 
