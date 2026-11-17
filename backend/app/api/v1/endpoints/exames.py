@@ -14,6 +14,7 @@ from app.core.database import get_db, SessionLocal
 from app.core.encryption import encrypt_bytes, decrypt_bytes
 from app.models.exame_toxicologico import ExameToxicologico
 from app.models.usuario import Usuario
+from app.core.uploads import ler_com_limite
 from app.api.deps import get_current_user
 from app.schemas.exame_toxicologico import (
     ExameToxicologicoCreate,
@@ -188,7 +189,7 @@ async def importar_planilha(
     if not file.filename.lower().endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Formato inválido. Envie .xlsx, .xls ou .csv.")
 
-    file_bytes = await file.read()
+    file_bytes = await ler_com_limite(file, _TAMANHO_MAX)
     if len(file_bytes) > _TAMANHO_MAX:
         raise HTTPException(status_code=400, detail="Arquivo deve ter no máximo 10 MB.")
 
@@ -483,7 +484,7 @@ async def upload_pdf_exame(
     if ext != ".pdf" and arquivo.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF são permitidos.")
 
-    conteudo = await arquivo.read()
+    conteudo = await ler_com_limite(arquivo, 15 * 1024 * 1024)
     if not conteudo:
         raise HTTPException(status_code=400, detail="O arquivo enviado está vazio.")
     if len(conteudo) > 15 * 1024 * 1024:  # 15 MB

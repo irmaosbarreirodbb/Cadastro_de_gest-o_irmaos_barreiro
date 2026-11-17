@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.uploads import ler_com_limite
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.encryption import decrypt_bytes, encrypt_bytes
@@ -51,7 +52,7 @@ async def enviar(cadastro_id: str, posicao: int = Form(...), arquivo: UploadFile
         raise HTTPException(status_code=400, detail="Posição de documento inválida")
     if arquivo.content_type not in _TIPOS:
         raise HTTPException(status_code=400, detail="Envie somente arquivos PDF, JPG ou PNG")
-    conteudo = await arquivo.read()
+    conteudo = await ler_com_limite(arquivo, _MAXIMO)
     if not conteudo or len(conteudo) > _MAXIMO:
         raise HTTPException(status_code=400, detail="O arquivo deve ter no máximo 10 MB")
     _validar_conteudo(conteudo, arquivo.content_type)

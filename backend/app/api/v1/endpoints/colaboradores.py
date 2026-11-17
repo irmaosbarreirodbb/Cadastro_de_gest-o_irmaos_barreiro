@@ -14,6 +14,7 @@ from app.models.cnh import CNHFuncionario
 from app.models.usuario import Usuario
 from app.schemas.colaborador import ColaboradorCreate, ColaboradorOut, StatusUpdate
 from app.services.protocolo import gerar_protocolo
+from app.core.uploads import ler_com_limite
 from app.api.deps import get_current_user
 from app.core.rate_limit import enforce_rate_limit
 
@@ -439,7 +440,7 @@ async def enviar_documento(
     if arquivo.content_type not in CONTENT_TYPES_PERMITIDOS:
         raise HTTPException(status_code=400, detail="Envie somente arquivos PDF, JPG ou PNG")
 
-    conteudo = await arquivo.read()
+    conteudo = await ler_com_limite(arquivo, TAMANHO_MAXIMO_DOCUMENTO)
     if not conteudo:
         raise HTTPException(status_code=400, detail="O arquivo enviado esta vazio")
     if len(conteudo) > TAMANHO_MAXIMO_DOCUMENTO:

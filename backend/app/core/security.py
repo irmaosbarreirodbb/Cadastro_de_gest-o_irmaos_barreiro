@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
-from jose import jwt
+import jwt  # PyJWT (substitui o python-jose, que tem vulnerabilidades conhecidas e está sem manutenção)
 import secrets
 import bcrypt
 from app.core.config import settings
@@ -30,6 +30,12 @@ def create_access_token(subject: Union[str, Any], expires_delta: timedelta = Non
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": str(subject)}
+    # jti = identificador único deste login; o logout usa para invalidar o token no servidor.
+    to_encode = {"exp": expire, "sub": str(subject), "jti": secrets.token_urlsafe(16)}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+
+def decode_access_token(token: str) -> dict:
+    """Valida assinatura e expiração. Levanta jwt.PyJWTError se o token for inválido."""
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
